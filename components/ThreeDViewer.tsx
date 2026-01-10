@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { X, Box, MousePointer2, Layers } from 'lucide-react';
@@ -17,10 +18,10 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
 
     // 1. Scene Setup
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#050209');
+    scene.background = new THREE.Color('#0F120E');
     
     // Add subtle fog to blend the edges into the void
-    scene.fog = new THREE.FogExp2('#050209', 0.15);
+    scene.fog = new THREE.FogExp2('#0F120E', 0.15);
 
     // 2. Camera
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -49,8 +50,6 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
         imgTexture.colorSpace = THREE.SRGBColorSpace;
 
         // 5. Create Geometry
-        // Increase segments significantly for "Detailed" look. 
-        // 768x768 is heavy but necessary for detailed displacement of furniture.
         const sourceImage = imgTexture.image as HTMLImageElement;
         const aspect = sourceImage.width / sourceImage.height;
         const geometry = new THREE.PlaneGeometry(2.5 * aspect, 2.5, 768, 768);
@@ -59,8 +58,8 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
         const material = new THREE.MeshStandardMaterial({
             map: imgTexture,
             displacementMap: depthTexture,
-            displacementScale: 1.2, // Increased scale for more "pop"
-            displacementBias: -0.4, // Center the displacement
+            displacementScale: 1.2, 
+            displacementBias: -0.4, 
             side: THREE.DoubleSide,
             roughness: 0.6,
             metalness: 0.2,
@@ -72,9 +71,7 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
         plane.receiveShadow = true;
         scene.add(plane);
 
-        // 7. Lighting Setup (Crucial for detail)
-        
-        // Base ambient light
+        // 7. Lighting Setup 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambientLight);
         
@@ -84,16 +81,16 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // Rim Light (Cool) - Highlights edges
+        // Rim Light (Cool)
         const rimLight = new THREE.DirectionalLight(0xccddff, 1.0);
         rimLight.position.set(-3, 3, 2);
         scene.add(rimLight);
 
-        // Dynamic Moving Light (To show depth contours)
-        const movingLight = new THREE.PointLight(0xff48b9, 2, 10);
+        // Dynamic Moving Light (Earthy Secondary Accent)
+        const movingLight = new THREE.PointLight(0xAAC48C, 2, 10);
         scene.add(movingLight);
 
-        // 8. Interaction (Smoother Parallax)
+        // 8. Interaction 
         const cursor = { x: 0, y: 0 };
         const targetRotation = { x: 0, y: 0 };
 
@@ -110,14 +107,12 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
             requestAnimationFrame(animate);
             const time = clock.getElapsedTime();
 
-            // Smooth rotation interpolation (Damping)
-            targetRotation.x = cursor.y * 0.4; // Max vertical tilt
-            targetRotation.y = cursor.x * 0.4; // Max horizontal tilt
+            targetRotation.x = cursor.y * 0.4; 
+            targetRotation.y = cursor.x * 0.4; 
             
             plane.rotation.x += (targetRotation.x - plane.rotation.x) * 0.05;
             plane.rotation.y += (targetRotation.y - plane.rotation.y) * 0.05;
 
-            // Move the dynamic light in a figure-8 pattern to highlight depth changes
             movingLight.position.x = Math.sin(time * 0.5) * 4;
             movingLight.position.y = Math.cos(time * 0.3) * 3;
             movingLight.position.z = 2 + Math.sin(time * 0.8);
@@ -160,19 +155,19 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
       
       {/* UI Overlay */}
       <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start pointer-events-none">
-          <div className="bg-black/60 backdrop-blur-md p-6 rounded-3xl border border-white/10 pointer-events-auto shadow-2xl">
+          <div className="bg-background/80 backdrop-blur-md p-6 rounded-3xl border border-white/10 pointer-events-auto shadow-2xl">
               <h3 className="text-2xl font-display font-bold text-white flex items-center gap-3">
-                  <Box className="text-primary animate-pulse" />
+                  <Box className="text-secondary animate-pulse" />
                   Holographic View
               </h3>
               <div className="space-y-1 mt-2">
-                <p className="text-sm text-slate-300 flex items-center gap-2">
-                    <MousePointer2 size={14} className="text-secondary" />
+                <p className="text-sm text-accent/80 flex items-center gap-2">
+                    <MousePointer2 size={14} className="text-tertiary" />
                     Move cursor to rotate perspective
                 </p>
-                <p className="text-xs text-slate-500 flex items-center gap-2">
+                <p className="text-xs text-accent/40 flex items-center gap-2">
                     <Layers size={12} />
-                    High-Polygon Displacement Active
+                    Organic Geometry Active
                 </p>
               </div>
           </div>
@@ -186,15 +181,15 @@ const ThreeDViewer: React.FC<ThreeDViewerProps> = ({ imageUrl, depthUrl, onClose
       </div>
 
       {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-black/80 backdrop-blur-sm z-50">
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none bg-background/80 backdrop-blur-sm z-50">
               <div className="relative">
-                  <div className="w-16 h-16 border-4 border-white/10 border-t-primary rounded-full animate-spin"></div>
+                  <div className="w-16 h-16 border-4 border-white/10 border-t-secondary rounded-full animate-spin"></div>
                   <div className="absolute inset-0 flex items-center justify-center">
                       <Box size={20} className="text-white/50" />
                   </div>
               </div>
               <span className="mt-6 text-white font-display font-bold tracking-widest uppercase text-sm animate-pulse">
-                  Constructing Geometry...
+                  Assembling Space...
               </span>
           </div>
       )}

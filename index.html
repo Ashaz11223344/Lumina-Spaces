@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lumina Spaces - AI Room Redesign</title>
+    <title>Lumina Spaces - Organic AI Redesign</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet" />
@@ -45,12 +46,14 @@
               display: ['Space Grotesk', 'sans-serif'],
             },
             colors: {
-              background: '#0a0510',
-              primary: '#FF48B9',
-              secondary: '#12CE6A',
-              tertiary: '#50207A',
-              surface: '#130a1f',
-              glass: 'rgba(80, 32, 122, 0.15)',
+              background: '#0F120E',
+              primary: '#6A7A5A',
+              secondary: '#AAC48C',
+              tertiary: '#8DAF98',
+              surface: '#1A1E18',
+              accent: '#D7CBB2',
+              pale: '#BED2BA',
+              glass: 'rgba(141, 175, 152, 0.15)',
             },
             animation: {
               'fade-in': 'fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
@@ -69,8 +72,8 @@
                 '50%': { transform: 'translateY(-10px)' },
               },
               glow: {
-                '0%': { boxShadow: '0 0 10px rgba(255, 72, 185, 0.2)' },
-                '100%': { boxShadow: '0 0 25px rgba(255, 72, 185, 0.6)' },
+                '0%': { boxShadow: '0 0 10px rgba(170, 196, 140, 0.2)' },
+                '100%': { boxShadow: '0 0 25px rgba(170, 196, 140, 0.6)' },
               },
               blob: {
                 '0%': { transform: 'translate(0px, 0px) scale(1)' },
@@ -86,30 +89,30 @@
 
     <style>
       body {
-        background-color: #050209;
-        color: #f8fafc;
+        background-color: #0F120E;
+        color: #E2E8F0;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
         overflow-x: hidden;
       }
       ::-webkit-scrollbar { width: 6px; height: 6px; }
-      ::-webkit-scrollbar-track { background: #0a0510; }
-      ::-webkit-scrollbar-thumb { background: #50207A; border-radius: 10px; }
-      ::-webkit-scrollbar-thumb:hover { background: #FF48B9; }
-      .glass-panel { background: rgba(15, 10, 30, 0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37); }
-      .glass-card { background: rgba(255,255,255,0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); transition: all .3s ease; }
-      .glass-card:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,72,185,0.3); box-shadow: 0 0 20px rgba(80,32,122,0.3); }
-      .text-glow { text-shadow: 0 0 10px rgba(255,72,185,0.5); }
+      ::-webkit-scrollbar-track { background: #0F120E; }
+      ::-webkit-scrollbar-thumb { background: #6A7A5A; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #AAC48C; }
+      .glass-panel { background: rgba(26, 30, 24, 0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37); }
+      .glass-card { background: rgba(215, 203, 178, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); transition: all .3s ease; }
+      .glass-card:hover { background: rgba(255,255,255,0.08); border-color: rgba(106, 122, 90, 0.3); box-shadow: 0 0 20px rgba(141, 175, 152, 0.3); }
+      .text-glow { text-shadow: 0 0 10px rgba(170, 196, 140, 0.5); }
 
-      /* Smooth, slow gradient background */
+      /* Smooth, organic gradient background */
       .bg-animated {
         position: fixed;
         inset: 0;
         z-index: -20;
-        background: radial-gradient(1200px 800px at 10% 20%, rgba(255, 72, 185, 0.12), transparent 60%),
-                    radial-gradient(900px 700px at 90% 30%, rgba(18, 206, 106, 0.12), transparent 60%),
-                    radial-gradient(1000px 900px at 50% 90%, rgba(80, 32, 122, 0.18), transparent 60%),
-                    linear-gradient(120deg, #050209, #0a0510 40%, #130a1f 100%);
+        background: radial-gradient(1200px 800px at 10% 20%, rgba(106, 122, 90, 0.15), transparent 60%),
+                    radial-gradient(900px 700px at 90% 30%, rgba(141, 175, 152, 0.12), transparent 60%),
+                    radial-gradient(1000px 900px at 50% 90%, rgba(170, 196, 140, 0.1), transparent 60%),
+                    linear-gradient(120deg, #0F120E, #1A1E18 40%, #2A2F25 100%);
         background-size: 120% 120%;
         animation: gradientShift 30s ease-in-out infinite;
         will-change: transform, background-position, background-size;
@@ -118,7 +121,7 @@
       @keyframes gradientShift {
         0%   { background-position: 0% 0%; filter: saturate(100%); }
         25%  { background-position: 50% 20%; }
-        50%  { background-position: 100% 50%; filter: saturate(115%); }
+        50%  { background-position: 100% 50%; filter: saturate(110%); }
         75%  { background-position: 50% 80%; }
         100% { background-position: 0% 0%; filter: saturate(100%); }
       }
@@ -129,7 +132,7 @@
         inset: 0;
         z-index: -10;
         pointer-events: none;
-        opacity: 0.45;
+        opacity: 0.3;
       }
 
       /* Respect reduced motion */
@@ -176,18 +179,18 @@
 
           const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-          // Particle configuration kept subtle
-          const COUNT = prefersReduced ? 0 : Math.floor((width * height) / 40000); // about 20 to 60
-          const SPEED = 0.12;
-          const SIZE = 1.2;
+          // Organic particle configuration
+          const COUNT = prefersReduced ? 0 : Math.floor((width * height) / 45000); 
+          const SPEED = 0.08;
+          const SIZE = 1.0;
 
           const particles = Array.from({ length: COUNT }, () => ({
             x: Math.random() * width,
             y: Math.random() * height,
             vx: (Math.random() - 0.5) * SPEED,
             vy: (Math.random() - 0.5) * SPEED,
-            r: SIZE + Math.random() * 0.8,
-            a: 0.35 + Math.random() * 0.25,
+            r: SIZE + Math.random() * 0.5,
+            a: 0.2 + Math.random() * 0.2,
           }));
 
           let raf = 0;
@@ -196,8 +199,8 @@
 
             // soft glow field
             const g = ctx.createRadialGradient(width * 0.5, height * 0.6, 0, width * 0.5, height * 0.6, Math.max(width, height));
-            g.addColorStop(0, 'rgba(255, 72, 185, 0.04)');
-            g.addColorStop(0.6, 'rgba(18, 206, 106, 0.03)');
+            g.addColorStop(0, 'rgba(106, 122, 90, 0.05)');
+            g.addColorStop(0.6, 'rgba(215, 203, 178, 0.02)');
             g.addColorStop(1, 'rgba(0, 0, 0, 0)');
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, width, height);
@@ -215,16 +218,8 @@
 
               ctx.beginPath();
               ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-              ctx.fillStyle = `rgba(255,255,255,${p.a})`;
+              ctx.fillStyle = `rgba(215, 203, 178, ${p.a})`;
               ctx.fill();
-
-              // micro trail
-              ctx.beginPath();
-              ctx.moveTo(p.x, p.y);
-              ctx.lineTo(p.x - p.vx * 8, p.y - p.vy * 8);
-              ctx.lineWidth = 0.6;
-              ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-              ctx.stroke();
             }
 
             raf = requestAnimationFrame(draw);
@@ -253,10 +248,10 @@
         useParticles();
         return (
           React.createElement('main', { className: 'relative min-h-screen flex flex-col items-center justify-center px-6' },
-            React.createElement('section', { className: 'glass-panel w-full max-w-4xl rounded-2xl p-8 animate-fade-in' },
-              React.createElement('h1', { className: 'font-display text-4xl md:text-5xl mb-4 text-glow' }, 'Lumina Spaces'),
-              React.createElement('p', { className: 'text-slate-300 max-w-2xl' },
-                'Subtle animated background is active. Particles move gently, and the gradient breathes slowly to add depth without distraction.'
+            React.createElement('section', { className: 'glass-panel w-full max-w-4xl rounded-3xl p-10 animate-fade-in' },
+              React.createElement('h1', { className: 'font-display font-bold text-4xl md:text-5xl mb-6 text-[#AAC48C]' }, 'Lumina Spaces'),
+              React.createElement('p', { className: 'text-[#D7CBB2]/80 max-w-2xl leading-relaxed text-lg' },
+                'Reimagining architecture through an organic lens. Earthy tones and natural flow create a space for visionaries.'
               )
             )
           )

@@ -1,3 +1,4 @@
+
 export enum AppState {
   UPLOAD = 'UPLOAD',
   EDITOR = 'EDITOR',
@@ -35,6 +36,49 @@ export enum LightingOption {
   NEUTRAL = 'Neutral'
 }
 
+export enum Gender {
+  MALE = 'Male',
+  FEMALE = 'Female',
+  NEUTRAL = 'Neutral'
+}
+
+export enum AvatarStyle {
+  AVATAAARS = 'avataaars',
+  LORELEI = 'lorelei',
+  BOTTTS = 'bottts',
+  NOTIONISTS = 'notionists',
+  PIXEL_ART = 'pixel-art'
+}
+
+export interface SavedPreset {
+  id: string;
+  name: string;
+  roomType: RoomType;
+  style: StylePreset;
+  lighting: LightingOption;
+  creativity: number;
+  prompt: string;
+}
+
+export interface UserPreferences {
+  defaultRoomType: RoomType;
+  defaultStyle: StylePreset;
+  defaultLighting: LightingOption;
+  savedPresets: SavedPreset[];
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatar: string;
+  avatarStyle: AvatarStyle;
+  isPro: boolean;
+  joinedAt: number;
+  gender: Gender;
+  preferences: UserPreferences;
+}
+
 export interface GenerationSettings {
   prompt: string;
   roomType: RoomType;
@@ -42,12 +86,13 @@ export interface GenerationSettings {
   lighting: LightingOption;
   creativity: number; // 0-100
   preserveStructure: boolean;
-  autoSuggest: boolean; // New toggle state
+  autoSuggest: boolean;
 }
 
 export interface GenerationResult {
   id: string;
   imageUrl: string;
+  depthMapUrl?: string;
   promptUsed: string;
   timestamp: number;
   sourceImage: string;
