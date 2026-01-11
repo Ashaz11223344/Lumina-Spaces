@@ -1,4 +1,5 @@
 
+
 export enum AppState {
   UPLOAD = 'UPLOAD',
   EDITOR = 'EDITOR',
@@ -34,6 +35,14 @@ export enum LightingOption {
   WARM_INDOOR = 'Warm indoor',
   GOLDEN_HOUR = 'Golden hour',
   NEUTRAL = 'Neutral'
+}
+
+// Added TimePeriod enum to resolve the import error in TimeOfDaySelector.tsx
+export enum TimePeriod {
+  MORNING = 'Morning',
+  AFTERNOON = 'Afternoon',
+  EVENING = 'Evening',
+  NIGHT = 'Night'
 }
 
 export enum Gender {
@@ -112,6 +121,7 @@ export interface ProductItem {
   query: string;
   category: string;
   priceRange?: string;
+  box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-1000
 }
 
 export interface BudgetItem {
@@ -120,4 +130,17 @@ export interface BudgetItem {
   costMin: number;
   costMax: number;
   category: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  userId?: string;
+  updatedAt: number;
+  sourceImage: string;
+  settings: GenerationSettings;
+  result: GenerationResult | null;
+  history: GenerationResult[];
+  shoppingItems: ProductItem[];
+  budgetItems: BudgetItem[];
 }

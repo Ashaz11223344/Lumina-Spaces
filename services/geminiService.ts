@@ -1,8 +1,9 @@
-import { GoogleGenAI } from "@google/genai";
+
+import { GoogleGenAI, Type } from "@google/genai";
 import { GenerationSettings, DesignSuggestion, ProductItem, BudgetItem, RoomType } from '../types';
 
-// Corrected SDK initialization to follow Google GenAI SDK guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Global instances are avoided to ensure fresh initialization with the current API key 
+// from process.env.API_KEY before each request, following SDK guidelines.
 
 const resizeImageForVision = (base64Str: string, maxWidth = 1024): Promise<string> => {
   return new Promise((resolve) => {
@@ -31,20 +32,11 @@ const resizeImageForVision = (base64Str: string, maxWidth = 1024): Promise<strin
   });
 };
 
-const parseJsonResponse = (text: string) => {
-  try {
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
-  } catch (e) {
-    console.error("Failed to parse JSON from model response:", text);
-    throw new Error("Model response was not valid JSON");
-  }
-};
-
 /**
- * Detects potential room improvements using Gemini 3 Flash.
+ * Detects potential room improvements using Gemini 3 Flash with structured JSON output.
  */
 export const detectRoomImprovements = async (base64Image: string, roomType?: string): Promise<DesignSuggestion[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview"; 
 
   const prompt = `
@@ -52,14 +44,7 @@ export const detectRoomImprovements = async (base64Image: string, roomType?: str
     Identify 3-4 specific high-impact changes that could improve the aesthetics.
     Focus on items that can be replaced or added.
     For each item, identify its position in the image.
-    
-    Return ONLY a raw JSON array of objects. 
-    IMPORTANT: Provide the bounding box for the object as "box_2d": [ymin, xmin, ymax, xmax] using scale 0-1000.
-    
-    SCHEMA:
-    [
-      { "id": "1", "text": "Replace the existing rug with a plush cream textured rug", "category": "decor", "box_2d": [ymin, xmin, ymax, xmax] }
-    ]
+    Provide the bounding box as "box_2d": [ymin, xmin, ymax, xmax] using scale 0-1000.
   `;
 
   try {
@@ -71,17 +56,41 @@ export const detectRoomImprovements = async (base64Image: string, roomType?: str
           { text: prompt },
           { inlineData: { mimeType: 'image/jpeg', data: optimizedImage.split(',')[1] } }
         ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              text: { type: Type.STRING },
+              category: { type: Type.STRING },
+              box_2d: { 
+                type: Type.ARRAY,
+                items: { type: Type.NUMBER },
+                description: 'Bounding box [ymin, xmin, ymax, xmax] normalized 0-1000'
+              }
+            },
+            required: ["id", "text", "category", "box_2d"]
+          }
+        }
       }
     });
 
-    return parseJsonResponse(response.text) as DesignSuggestion[];
+    return JSON.parse(response.text) as DesignSuggestion[];
   } catch (error) {
     console.error("Auto Suggestion Error:", error);
     return [];
   }
 };
 
+/**
+ * Orchestrates detailed design instructions from user preferences.
+ */
 export const orchestrateDesign = async (settings: GenerationSettings, base64Image: string, maskBase64?: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-pro-preview";
   const prompt = `
     Task: Act as a master architect. Refine the user's design prompt into a highly detailed visual instruction for an image generation model.
@@ -119,7 +128,11 @@ export const orchestrateDesign = async (settings: GenerationSettings, base64Imag
   }
 };
 
+/**
+ * Generates redesigned room images using inpainting techniques.
+ */
 export const generateRoomImage = async (base64Image: string, prompt: string, maskBase64?: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-2.5-flash-image";
   
   const contents: any = {
@@ -154,18 +167,17 @@ export const generateRoomImage = async (base64Image: string, prompt: string, mas
   }
 };
 
+/**
+ * Extracts shoppable furniture data with exact image coordinates.
+ */
 export const analyzeShoppableItems = async (base64Image: string, maskBase64?: string): Promise<ProductItem[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview";
   const prompt = `
     Identify 4 specific furniture or decor items in this design.
     ${maskBase64 ? "FOCUS ON ITEMS IN THE REDESIGNED AREA." : ""}
     Provide specific search queries and price ranges in INR.
-    
-    Return ONLY JSON.
-    SCHEMA:
-    [
-      { "id": "p1", "name": "Item Name", "query": "Specific Search Query", "category": "Furniture", "priceRange": "₹10,000 - ₹20,000" }
-    ]
+    For each item, provide its exact position in the image using normalized coordinates [ymin, xmin, ymax, xmax] (scale 0-1000) as "box_2d".
   `;
 
   try {
@@ -177,24 +189,46 @@ export const analyzeShoppableItems = async (base64Image: string, maskBase64?: st
           { text: prompt },
           { inlineData: { mimeType: 'image/jpeg', data: optimizedImage.split(',')[1] } }
         ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              name: { type: Type.STRING },
+              query: { type: Type.STRING },
+              category: { type: Type.STRING },
+              priceRange: { type: Type.STRING },
+              box_2d: { 
+                type: Type.ARRAY,
+                items: { type: Type.NUMBER },
+                description: 'Bounding box [ymin, xmin, ymax, xmax] normalized 0-1000'
+              }
+            },
+            required: ["id", "name", "query", "category", "box_2d"]
+          }
+        }
       }
     });
-    return parseJsonResponse(response.text) as ProductItem[];
+    return JSON.parse(response.text) as ProductItem[];
   } catch (error) {
     console.error("Shopping Analysis Error:", error);
     return [];
   }
 };
 
+/**
+ * Estimates materials and labor costs for the redesign project.
+ */
 export const estimateRenovationCost = async (base64Image: string, maskBase64?: string, roomType?: string): Promise<BudgetItem[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview";
   const prompt = `
-    Act as a local Indian contractor. Estimate the cost of elements in this redesign.
-    Return ONLY JSON array.
-    SCHEMA:
-    [
-      { "id": "b1", "item": "Item Name", "costMin": 5000, "costMax": 10000, "category": "Material" }
-    ]
+    Act as a local Indian contractor. Estimate the cost of elements in this redesign of a ${roomType || "Room"}.
+    Provide a realistic breakdown of material and labor costs in INR.
   `;
 
   try {
@@ -206,20 +240,40 @@ export const estimateRenovationCost = async (base64Image: string, maskBase64?: s
           { text: prompt },
           { inlineData: { mimeType: 'image/jpeg', data: optimizedImage.split(',')[1] } }
         ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              item: { type: Type.STRING },
+              costMin: { type: Type.NUMBER },
+              costMax: { type: Type.NUMBER },
+              category: { type: Type.STRING }
+            },
+            required: ["id", "item", "costMin", "costMax", "category"]
+          }
+        }
       }
     });
-    return parseJsonResponse(response.text) as BudgetItem[];
+    return JSON.parse(response.text) as BudgetItem[];
   } catch (error) {
     console.error("Cost Estimation Error:", error);
     return [];
   }
 };
 
+/**
+ * Generates a depth map for volumetric 3D visualization.
+ */
 export const generateDepthMap = async (base64Image: string): Promise<string> => {
-  // Corrected: gemini-3-pro-preview is a text model. Using gemini-2.5-flash-image for image-to-image/editing tasks.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-2.5-flash-image";
   const prompt = `
-    Generate a grayscale depth map of this image.
+    Generate a grayscale depth map of this interior design image.
     Brighter pixels are closer to the camera.
     Return ONLY the image data.
   `;

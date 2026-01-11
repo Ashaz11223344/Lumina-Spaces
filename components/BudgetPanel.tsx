@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BudgetItem } from '../types';
 import { DollarSign, TrendingUp, History } from 'lucide-react';
@@ -38,25 +39,25 @@ const BudgetPanel: React.FC<BudgetPanelProps> = ({ currentItems, history, isLoad
   };
 
   return (
-    <div className="mt-8 glass-panel rounded-[2rem] p-8 border border-white/10 animate-fade-in relative overflow-hidden">
+    <div className="mt-6 lg:mt-8 glass-panel rounded-[1.5rem] lg:rounded-[2rem] p-6 lg:p-8 border border-white/10 animate-fade-in relative overflow-hidden">
         {/* Decorative Background */}
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-secondary/5 rounded-full blur-[80px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-32 lg:w-64 h-32 lg:h-64 bg-secondary/5 rounded-full blur-[40px] lg:blur-[80px] pointer-events-none" />
 
-        <div className="flex items-center justify-between mb-8 relative z-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 lg:gap-3 mb-6 lg:mb-8 relative z-10">
             <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-green-900 to-secondary/50 shadow-lg shadow-secondary/10">
-                    <span className="text-xl font-bold text-white font-sans">₹</span>
+                <div className="p-2.5 lg:p-3 rounded-xl bg-gradient-to-br from-green-900 to-secondary/50 shadow-lg shadow-secondary/10">
+                    <span className="text-lg lg:text-xl font-bold text-white font-sans">₹</span>
                 </div>
                 <div>
-                    <h3 className="text-2xl font-display font-bold text-white">Renovation Ledger</h3>
-                    <p className="text-sm text-slate-400">Estimated material & labor costs (INR)</p>
+                    <h3 className="text-xl lg:text-2xl font-display font-bold text-white leading-none">Renovation Ledger</h3>
+                    <p className="text-[10px] lg:text-sm text-slate-400 mt-1">Est. material & labor (INR)</p>
                 </div>
             </div>
             
             {!isLoading && (
-                <div className="text-right">
-                    <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-1">Project Total Estimate</p>
-                    <p className="text-2xl font-display font-bold text-secondary text-glow">
+                <div className="text-left sm:text-right">
+                    <p className="text-[8px] lg:text-[10px] uppercase tracking-widest text-slate-400 font-bold mb-0.5 lg:mb-1">Project Estimate</p>
+                    <p className="text-xl lg:text-2xl font-display font-bold text-secondary text-glow">
                         ₹{grandTotal.min.toLocaleString('en-IN')} - ₹{grandTotal.max.toLocaleString('en-IN')}
                     </p>
                 </div>
@@ -74,21 +75,21 @@ const BudgetPanel: React.FC<BudgetPanelProps> = ({ currentItems, history, isLoad
 
         {/* Current Round */}
         {!isLoading && currentItems.length > 0 && (
-            <div className="mb-8">
-                <div className="flex items-center gap-2 mb-4 text-primary text-xs uppercase tracking-widest font-bold">
-                    <TrendingUp size={14} />
-                    <span>Latest Changes</span>
+            <div className="mb-6 lg:mb-8">
+                <div className="flex items-center gap-2 mb-3 lg:mb-4 text-primary text-[10px] lg:text-xs uppercase tracking-widest font-bold">
+                    <TrendingUp size={12} className="lg:w-3.5 lg:h-3.5" />
+                    <span>Latest Estimates</span>
                 </div>
-                <div className="grid gap-3">
+                <div className="grid gap-2 lg:gap-3">
                     {currentItems.map((item, idx) => (
-                        <div key={`curr-${idx}`} className={`flex items-center justify-between p-4 rounded-xl border border-white/5 bg-black/20 hover:bg-white/5 transition-colors`}>
-                            <div className="flex items-center gap-4">
-                                <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold border ${categoryColors[item.category] || 'border-slate-700 text-slate-400'}`}>
+                        <div key={`curr-${idx}`} className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 lg:p-4 rounded-xl border border-white/5 bg-black/20 hover:bg-white/5 transition-colors gap-2`}>
+                            <div className="flex items-center gap-3">
+                                <span className={`px-2 py-0.5 rounded text-[8px] lg:text-[10px] uppercase font-bold border whitespace-nowrap ${categoryColors[item.category] || 'border-slate-700 text-slate-400'}`}>
                                     {item.category}
                                 </span>
-                                <span className="font-medium text-slate-200">{item.item}</span>
+                                <span className="text-xs lg:text-sm font-medium text-slate-200 truncate">{item.item}</span>
                             </div>
-                            <div className="font-mono text-sm text-slate-400">
+                            <div className="font-mono text-xs lg:text-sm text-slate-400 self-end sm:self-auto">
                                 ₹{item.costMin.toLocaleString('en-IN')} - ₹{item.costMax.toLocaleString('en-IN')}
                             </div>
                         </div>
@@ -99,23 +100,23 @@ const BudgetPanel: React.FC<BudgetPanelProps> = ({ currentItems, history, isLoad
 
         {/* History */}
         {!isLoading && history.length > 0 && (
-             <div className="pt-6 border-t border-white/10">
-                 <div className="flex items-center gap-2 mb-4 text-slate-500 text-xs uppercase tracking-widest font-bold">
-                     <History size={14} />
-                     <span>Previous Work</span>
+             <div className="pt-4 lg:pt-6 border-t border-white/10">
+                 <div className="flex items-center gap-2 mb-3 lg:mb-4 text-slate-500 text-[10px] lg:text-xs uppercase tracking-widest font-bold">
+                     <History size={12} className="lg:w-3.5 lg:h-3.5" />
+                     <span>Previous Sessions</span>
                  </div>
-                 <div className="space-y-6">
+                 <div className="space-y-4 lg:space-y-6">
                      {history.map((entry, idx) => (
                          <div key={entry.id} className="opacity-60 hover:opacity-100 transition-opacity">
                              {entry.items.map((item, itemIdx) => (
-                                 <div key={`hist-${idx}-${itemIdx}`} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-black/20 grayscale mb-2">
-                                     <div className="flex items-center gap-4">
-                                         <span className={`px-2 py-1 rounded text-[10px] uppercase font-bold border ${categoryColors[item.category] || 'border-slate-700 text-slate-400'}`}>
+                                 <div key={`hist-${idx}-${itemIdx}`} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 lg:p-4 rounded-xl border border-white/5 bg-black/20 grayscale mb-2 gap-2">
+                                     <div className="flex items-center gap-3">
+                                         <span className={`px-2 py-0.5 rounded text-[8px] lg:text-[10px] uppercase font-bold border whitespace-nowrap ${categoryColors[item.category] || 'border-slate-700 text-slate-400'}`}>
                                              {item.category}
                                          </span>
-                                         <span className="font-medium text-slate-200">{item.item}</span>
+                                         <span className="text-xs lg:text-sm font-medium text-slate-200 truncate">{item.item}</span>
                                      </div>
-                                     <div className="font-mono text-sm text-slate-400">
+                                     <div className="font-mono text-xs lg:text-sm text-slate-400 self-end sm:self-auto">
                                          ₹{item.costMin.toLocaleString('en-IN')} - ₹{item.costMax.toLocaleString('en-IN')}
                                      </div>
                                  </div>

@@ -48,19 +48,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   };
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 lg:space-y-10">
       
       {/* Presets Bar */}
       {user && (
-        <div className="space-y-4">
+        <div className="space-y-3 lg:space-y-4">
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm font-bold text-accent uppercase tracking-widest">
-              <Bookmark size={16} className="text-secondary" />
+            <label className="flex items-center gap-2 text-xs lg:text-sm font-bold text-accent uppercase tracking-widest">
+              <Bookmark size={14} className="text-secondary lg:w-4 lg:h-4" />
               Presets
             </label>
             <button 
               onClick={() => setShowPresetInput(!showPresetInput)}
-              className="text-[10px] font-black uppercase tracking-widest text-secondary hover:text-white transition-colors"
+              className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest text-secondary hover:text-white transition-colors"
             >
               {showPresetInput ? 'Cancel' : 'Save New'}
             </button>
@@ -89,50 +89,50 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               <button
                 key={p.id}
                 onClick={() => onLoadPreset(p)}
-                className="flex-shrink-0 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[10px] font-bold text-accent/70 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap"
+                className="flex-shrink-0 px-3 lg:px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-[9px] lg:text-[10px] font-bold text-accent/70 hover:bg-white/10 hover:text-white transition-all whitespace-nowrap"
               >
                 {p.name}
               </button>
             ))}
             {user.preferences.savedPresets.length === 0 && !showPresetInput && (
-              <p className="text-[10px] text-accent/20 uppercase tracking-widest py-2">No presets saved yet</p>
+              <p className="text-[9px] lg:text-[10px] text-accent/20 uppercase tracking-widest py-2">No presets saved yet</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Auto Suggestor Toggle & Output */}
-      <div className="p-5 rounded-2xl bg-white/5 border border-white/5 space-y-4 relative overflow-hidden">
+      {/* Auto Suggestor */}
+      <div className="p-4 lg:p-5 rounded-2xl bg-white/5 border border-white/5 space-y-3 lg:space-y-4 relative overflow-hidden">
          {settings.autoSuggest && (
-             <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 blur-[50px] rounded-full pointer-events-none" />
+             <div className="absolute top-0 right-0 w-24 lg:w-32 h-24 lg:h-32 bg-secondary/10 blur-[40px] lg:blur-[50px] rounded-full pointer-events-none" />
          )}
 
          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-               <div className={`p-2 rounded-lg ${settings.autoSuggest ? 'bg-secondary text-background' : 'bg-white/10 text-accent/50'}`}>
-                  <BrainCircuit size={18} />
+               <div className={`p-1.5 lg:p-2 rounded-lg ${settings.autoSuggest ? 'bg-secondary text-background' : 'bg-white/10 text-accent/50'}`}>
+                  <BrainCircuit size={16} className="lg:w-[18px] lg:h-[18px]" />
                </div>
                <div>
-                  <h3 className="text-sm font-bold text-white leading-none">Auto Suggestor</h3>
-                  <p className="text-[10px] text-accent/40 mt-1">AI detects opportunities</p>
+                  <h3 className="text-xs lg:text-sm font-bold text-white leading-none">Auto Suggest</h3>
+                  <p className="text-[9px] lg:text-[10px] text-accent/40 mt-1">AI spatial scans</p>
                </div>
             </div>
             
             <button 
               onClick={() => onChange({ ...settings, autoSuggest: !settings.autoSuggest })}
-              className={`w-12 h-7 rounded-full transition-colors relative ${settings.autoSuggest ? 'bg-secondary' : 'bg-white/10'}`}
+              className={`w-10 lg:w-12 h-6 lg:h-7 rounded-full transition-colors relative ${settings.autoSuggest ? 'bg-secondary' : 'bg-white/10'}`}
             >
-               <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.autoSuggest ? 'translate-x-5' : 'translate-x-0'}`} />
+               <div className={`absolute top-1 left-1 w-4 lg:w-5 h-4 lg:h-5 bg-white rounded-full transition-transform ${settings.autoSuggest ? 'translate-x-4 lg:translate-x-5' : 'translate-x-0'}`} />
             </button>
          </div>
 
          <div className="transition-all duration-500">
              {settings.autoSuggest && isAnalyzing && (
-                 <div className="flex flex-col items-center justify-center py-4 gap-3">
+                 <div className="flex flex-col items-center justify-center py-4 gap-2">
                      <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden relative">
                          <div className="absolute inset-0 bg-secondary animate-[shimmer_1s_infinite] w-1/2" />
                      </div>
-                     <span className="text-xs text-secondary font-mono animate-pulse">SCANNING ROOM GEOMETRY...</span>
+                     <span className="text-[9px] text-secondary font-mono animate-pulse">ORCHESTRATING DATA...</span>
                  </div>
              )}
 
@@ -144,15 +144,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                           onClick={() => onApplySuggestion(s)}
                           onMouseEnter={() => s.box_2d && onPreviewSuggestion(s.box_2d)}
                           onMouseLeave={() => onPreviewSuggestion(null)}
-                          className="group flex items-start gap-3 p-3 rounded-xl bg-background/40 hover:bg-white/10 border border-white/5 hover:border-secondary/50 text-left transition-all relative overflow-hidden"
+                          className="group flex items-start gap-3 p-2.5 rounded-xl bg-background/40 hover:bg-white/10 border border-white/5 hover:border-secondary/50 text-left transition-all relative overflow-hidden"
                         >
                            <div className="absolute inset-0 bg-secondary/5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-300" />
                            <div className="mt-0.5 text-secondary group-hover:scale-110 transition-transform relative z-10">
-                              {s.box_2d ? <MousePointerClick size={14} /> : <Plus size={14} />}
+                              {s.box_2d ? <MousePointerClick size={12} className="lg:w-[14px] lg:h-[14px]" /> : <Plus size={12} className="lg:w-[14px] lg:h-[14px]" />}
                            </div>
                            <div className="relative z-10">
-                               <span className="text-xs text-slate-300 group-hover:text-white leading-snug block">{s.text}</span>
-                               {s.box_2d && <span className="text-[9px] text-secondary/40 uppercase tracking-widest font-bold">Auto-Select</span>}
+                               <span className="text-[11px] lg:text-xs text-slate-300 group-hover:text-white leading-snug block">{s.text}</span>
+                               {s.box_2d && <span className="text-[8px] lg:text-[9px] text-secondary/40 uppercase tracking-widest font-bold">Auto-Select</span>}
                            </div>
                         </button>
                     ))}
@@ -161,19 +161,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
          </div>
       </div>
 
-      {/* Room Type Section */}
-      <div className="space-y-4">
-        <label className="flex items-center gap-2 text-sm font-bold text-accent uppercase tracking-widest">
-          <LayoutTemplate size={16} className="text-secondary" />
+      {/* Room Type */}
+      <div className="space-y-3 lg:space-y-4">
+        <label className="flex items-center gap-2 text-xs lg:text-sm font-bold text-accent uppercase tracking-widest">
+          <LayoutTemplate size={14} className="text-secondary lg:w-4 lg:h-4" />
           Room Type
         </label>
-        <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+        <div className="grid grid-cols-2 gap-2 max-h-40 lg:max-h-48 overflow-y-auto pr-1 scrollbar-thin">
           {Object.values(RoomType).map(t => (
             <button
               key={t}
               onClick={() => onChange({...settings, roomType: t})}
               className={`
-                px-3 py-2.5 text-xs rounded-xl font-medium transition-all duration-200 text-left flex items-center gap-2
+                px-3 py-2 lg:py-2.5 text-[10px] lg:text-xs rounded-xl font-medium transition-all duration-200 text-left flex items-center gap-2
                 ${settings.roomType === t
                   ? 'bg-pale text-background shadow-[0_0_15px_rgba(190,210,186,0.3)]' 
                   : 'bg-white/5 text-accent/60 hover:bg-white/10 hover:text-white'
@@ -181,21 +181,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               `}
             >
               <div className={`w-1.5 h-1.5 rounded-full ${settings.roomType === t ? 'bg-secondary' : 'bg-white/20'}`} />
-              {t}
+              <span className="truncate">{t}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Brief Section */}
-      <div className="space-y-4">
-        <label className="flex items-center justify-between text-sm font-bold text-accent uppercase tracking-widest">
+      {/* Vision Brief */}
+      <div className="space-y-3 lg:space-y-4">
+        <label className="flex items-center justify-between text-xs lg:text-sm font-bold text-accent uppercase tracking-widest">
           <span className="flex items-center gap-2">
-            <Sparkles size={16} className="text-secondary" />
+            <Sparkles size={14} className="text-secondary lg:w-4 lg:h-4" />
             Vision
           </span>
-          <span className="text-[10px] font-mono px-2 py-1 rounded-md bg-white/5 text-accent/50 border border-white/10">
-            {settings.prompt.length} / 500
+          <span className="text-[9px] lg:text-[10px] font-mono px-2 py-0.5 rounded-md bg-white/5 text-accent/50 border border-white/10">
+            {settings.prompt.length}/500
           </span>
         </label>
         <div className="relative group">
@@ -203,67 +203,67 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             value={settings.prompt}
             onChange={handleTextChange}
             placeholder="Describe the organic flow..."
-            className="w-full h-32 p-5 rounded-2xl border border-white/10 bg-background/40 focus:bg-background/60 focus:ring-1 focus:ring-secondary focus:border-secondary transition-all resize-none text-white placeholder:text-accent/30 text-sm leading-relaxed shadow-inner"
+            className="w-full h-24 lg:h-32 p-4 lg:p-5 rounded-2xl border border-white/10 bg-background/40 focus:bg-background/60 focus:ring-1 focus:ring-secondary focus:border-secondary transition-all resize-none text-white placeholder:text-accent/30 text-xs lg:text-sm leading-relaxed shadow-inner"
             maxLength={500}
           />
         </div>
       </div>
 
-      {/* Style Presets Grid */}
-      <div className="space-y-4">
-         <label className="flex items-center gap-2 text-sm font-bold text-accent uppercase tracking-widest">
-           <Palette size={16} className="text-secondary" />
+      {/* Aesthetic */}
+      <div className="space-y-3 lg:space-y-4">
+         <label className="flex items-center gap-2 text-xs lg:text-sm font-bold text-accent uppercase tracking-widest">
+           <Palette size={14} className="text-secondary lg:w-4 lg:h-4" />
            Aesthetic
          </label>
-         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-           {Object.values(StylePreset).map(s => (s === StylePreset.MODERN ? StylePreset.MODERN : s)).map(s => (
+         <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 lg:gap-3">
+           {Object.values(StylePreset).map(s => (
              <button
                key={s}
                onClick={() => onChange({...settings, style: s})}
                className={`
-                 relative px-4 py-3 text-xs rounded-xl font-medium transition-all duration-300 flex items-center justify-center text-center overflow-hidden group
+                 relative px-2 lg:px-4 py-2.5 lg:py-3 text-[10px] lg:text-xs rounded-xl font-medium transition-all duration-300 flex items-center justify-center text-center overflow-hidden group
                  ${settings.style === s
                    ? 'bg-primary text-white border border-secondary shadow-[0_0_15px_rgba(106,122,90,0.4)]' 
                    : 'bg-white/5 text-accent/60 border border-white/5 hover:bg-white/10 hover:text-white hover:border-white/20'
                  }
                `}
              >
-               <span className="relative z-10">{s}</span>
+               <span className="relative z-10 truncate">{s}</span>
              </button>
            ))}
          </div>
       </div>
       
-      {/* Lighting Section */}
-      <div className="space-y-4">
-         <label className="flex items-center gap-2 text-sm font-bold text-accent uppercase tracking-widest">
-           <Sun size={16} className="text-secondary" />
+      {/* Lighting */}
+      <div className="space-y-3 lg:space-y-4">
+         <label className="flex items-center gap-2 text-xs lg:text-sm font-bold text-accent uppercase tracking-widest">
+           <Sun size={14} className="text-secondary lg:w-4 lg:h-4" />
            Lighting
          </label>
-         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+         <div className="grid grid-cols-2 gap-2">
             {Object.values(LightingOption).map(l => (
                <button
                  key={l}
                  onClick={() => onChange({...settings, lighting: l})}
                  className={`
-                   px-3 py-2.5 rounded-xl text-xs font-medium border transition-all duration-300
+                   px-2 py-2 lg:py-2.5 rounded-xl text-[10px] lg:text-xs font-medium border transition-all duration-300
                    ${settings.lighting === l
                      ? 'border-secondary bg-secondary/10 text-secondary shadow-[0_0_10px_rgba(170,196,140,0.3)]' 
                      : 'border-white/5 bg-transparent text-accent/40 hover:bg-white/5 hover:text-white hover:border-white/10'
                    }
                  `}
                >
-                 {l}
+                 <span className="truncate">{l}</span>
                </button>
             ))}
          </div>
       </div>
 
-      {/* Creativity Slider */}
-      <div className="space-y-5 pt-4 p-6 rounded-3xl bg-white/5 border border-white/5">
+      {/* Creativity */}
+      <div className="space-y-4 lg:space-y-5 pt-2 lg:pt-4 p-4 lg:p-6 rounded-2xl lg:rounded-3xl bg-white/5 border border-white/5">
          <div className="flex justify-between items-center">
-            <label className="text-sm font-bold text-accent uppercase tracking-widest">Creativity</label>
-            <span className="text-xs font-mono font-bold text-secondary bg-secondary/10 px-3 py-1 rounded-full border border-secondary/20">
+            <label className="text-[10px] lg:text-xs font-bold text-accent uppercase tracking-widest">Creativity</label>
+            <span className="text-[10px] lg:text-xs font-mono font-bold text-secondary bg-secondary/10 px-2 lg:px-3 py-0.5 lg:py-1 rounded-full border border-secondary/20">
                 {settings.creativity}%
             </span>
          </div>
@@ -273,17 +273,17 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             max="100"
             value={settings.creativity}
             onChange={(e) => onChange({...settings, creativity: Number(e.target.value)})}
-            className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-secondary hover:accent-pale focus:outline-none"
+            className="w-full h-1 lg:h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-secondary hover:accent-pale focus:outline-none"
          />
       </div>
 
       {/* Action Bar */}
-      <div className="pt-4 sticky bottom-4 z-30">
+      <div className="pt-2 lg:pt-4 sticky bottom-2 lg:bottom-4 z-30">
         <button
           onClick={onGenerate}
           disabled={!isValid || isGenerating}
           className={`
-            w-full py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all duration-500 relative overflow-hidden group
+            w-full py-3.5 lg:py-4 rounded-xl lg:rounded-2xl font-bold text-base lg:text-lg flex items-center justify-center gap-3 transition-all duration-500 relative overflow-hidden group
             ${!isValid || isGenerating 
               ? 'bg-white/5 text-accent/20 cursor-not-allowed border border-white/5' 
               : 'bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_auto] hover:bg-[right_center] text-white shadow-[0_0_30px_-5px_rgba(106,122,90,0.5)] border border-secondary/30 hover:scale-[1.02]'
@@ -291,16 +291,16 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           `}
         >
           {isGenerating ? (
-            <div className="flex items-center gap-4">
-              <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <div className="flex items-center gap-3">
+              <svg className="animate-spin h-4 w-4 lg:h-5 lg:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span>Synchronizing...</span>
+              <span className="text-sm lg:text-base">Synchronizing...</span>
             </div>
           ) : (
             <>
-              <Zap size={20} className="fill-current" />
+              <Zap size={18} className="fill-current lg:w-5 lg:h-5" />
               <span>Generate Design</span>
             </>
           )}

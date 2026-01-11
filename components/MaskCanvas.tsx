@@ -40,7 +40,7 @@ const MaskCanvas = forwardRef<MaskCanvasHandle, MaskCanvasProps>(({ imageSrc, on
   }));
   
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col items-center justify-center relative w-full h-full">
        <MaskLayer 
          ref={layerRef}
          imageSrc={imageSrc} 
@@ -53,10 +53,7 @@ const MaskCanvas = forwardRef<MaskCanvasHandle, MaskCanvasProps>(({ imageSrc, on
          }}
        />
        
-       {/* Floating Toolbar - Earthy Organic */}
        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-6 bg-background/80 backdrop-blur-xl p-3 pl-6 pr-8 rounded-full shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] border border-white/10 z-30 transition-all hover:scale-105 hover:border-secondary/30 group">
-         
-         {/* Tools */}
          <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-full border border-white/5">
            <button
              onClick={() => setMode('brush')}
@@ -76,7 +73,6 @@ const MaskCanvas = forwardRef<MaskCanvasHandle, MaskCanvasProps>(({ imageSrc, on
          
          <div className="w-px h-8 bg-white/10" />
          
-         {/* Size Slider */}
          <div className="flex items-center gap-4">
            <span className="text-[10px] font-bold text-accent/40 uppercase tracking-widest">Brush Size</span>
            <input
@@ -103,11 +99,6 @@ const MaskCanvas = forwardRef<MaskCanvasHandle, MaskCanvasProps>(({ imageSrc, on
                 >
                     <Trash2 size={16} />
                 </button>
-                <div className="w-px h-8 bg-white/10" />
-                <span className="text-xs font-bold text-secondary flex items-center gap-2 uppercase tracking-wider">
-                   <span className="w-2 h-2 rounded-full bg-secondary animate-pulse shadow-[0_0_10px_#AAC48C]"></span>
-                   Active
-                </span>
             </>
          )}
        </div>
@@ -126,7 +117,6 @@ const MaskLayer = forwardRef<{
     onMaskUpdate: (hasMask: boolean) => void;
     previewBox?: [number, number, number, number] | null;
 }>(({ imageSrc, brushSize, mode, onMaskUpdate, previewBox }, ref) => {
-    const containerRef = useRef<HTMLDivElement>(null);
     const bgCanvasRef = useRef<HTMLCanvasElement>(null);
     const maskCanvasRef = useRef<HTMLCanvasElement>(null);
     const logicCanvasRef = useRef<HTMLCanvasElement>(null); 
@@ -135,9 +125,7 @@ const MaskLayer = forwardRef<{
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     useImperativeHandle(ref, () => ({
-        getMask: () => {
-            return logicCanvasRef.current?.toDataURL('image/png') || null;
-        },
+        getMask: () => logicCanvasRef.current?.toDataURL('image/png') || null,
         clear: () => {
             const width = dimensions.width;
             const height = dimensions.height;
@@ -154,7 +142,7 @@ const MaskLayer = forwardRef<{
             const logicCanvas = logicCanvasRef.current;
             const logicCtx = logicCanvas?.getContext('2d');
             
-            if (maskCtx && logicCtx) {
+            if (maskCtx && logicCtx && maskCanvas) {
                 const w = maskCanvas.width;
                 const h = maskCanvas.height;
                 const paddingY = 20; 
@@ -165,69 +153,52 @@ const MaskLayer = forwardRef<{
                 const ymax = Math.min(1000, box[2] + paddingY) / 1000 * h;
                 const xmax = Math.min(1000, box[3] + paddingX) / 1000 * w;
 
-                const boxW = xmax - xmin;
-                const boxH = ymax - ymin;
-
                 maskCtx.globalCompositeOperation = 'source-over';
                 maskCtx.fillStyle = 'rgba(106, 122, 90, 0.5)';
-                maskCtx.shadowBlur = 0;
-                maskCtx.fillRect(xmin, ymin, boxW, boxH);
-                maskCtx.strokeStyle = 'rgba(106, 122, 90, 0.9)';
-                maskCtx.lineWidth = 2;
-                maskCtx.strokeRect(xmin, ymin, boxW, boxH);
-
-                logicCtx.globalCompositeOperation = 'source-over';
+                maskCtx.fillRect(xmin, ymin, xmax - xmin, ymax - ymin);
                 logicCtx.fillStyle = '#FFFFFF';
-                logicCtx.shadowBlur = 0;
-                logicCtx.fillRect(xmin, ymin, boxW, boxH);
+                logicCtx.fillRect(xmin, ymin, xmax - xmin, ymax - ymin);
             }
         }
     }));
 
     useEffect(() => {
-        const bgCanvas = bgCanvasRef.current;
-        const maskCanvas = maskCanvasRef.current;
-        const logicCanvas = logicCanvasRef.current;
-        const overlayCanvas = overlayCanvasRef.current;
-        const container = containerRef.current;
-        if(!bgCanvas || !maskCanvas || !logicCanvas || !overlayCanvas || !container) return;
-
-        const loadImage = () => {
-            if (container.clientWidth === 0) {
-                setTimeout(loadImage, 100);
-                return;
+        const img = new Image();
+        img.src = imageSrc;
+        img.onload = () => {
+            const maxWidth = 1000;
+            const maxHeight = 700;
+            const aspect = img.width / img.height;
+            
+            let w = maxWidth;
+            let h = w / aspect;
+            
+            if (h > maxHeight) {
+                h = maxHeight;
+                w = h * aspect;
             }
-
-            const img = new Image();
-            img.src = imageSrc;
-            img.crossOrigin = "anonymous";
-            img.onload = () => {
-                const aspectRatio = img.width / img.height;
-                const maxHeight = 700;
-                const maxWidth = container.clientWidth;
-                
-                let renderHeight = maxHeight;
-                let renderWidth = renderHeight * aspectRatio;
-
-                if (renderWidth > maxWidth) {
-                    renderWidth = maxWidth;
-                    renderHeight = renderWidth / aspectRatio;
-                }
-
-                setDimensions({ width: renderWidth, height: renderHeight });
-
-                [bgCanvas, maskCanvas, logicCanvas, overlayCanvas].forEach(canvas => {
-                    canvas.width = renderWidth;
-                    canvas.height = renderHeight;
-                });
-
-                const ctx = bgCanvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0, renderWidth, renderHeight);
-            };
+            
+            setDimensions({ width: w, height: h });
         };
-
-        loadImage();
     }, [imageSrc]);
+
+    useEffect(() => {
+        if (dimensions.width === 0) return;
+        
+        [bgCanvasRef.current, maskCanvasRef.current, logicCanvasRef.current, overlayCanvasRef.current].forEach(canvas => {
+            if (canvas) {
+                canvas.width = dimensions.width;
+                canvas.height = dimensions.height;
+            }
+        });
+
+        const img = new Image();
+        img.src = imageSrc;
+        img.onload = () => {
+            const ctx = bgCanvasRef.current?.getContext('2d');
+            ctx?.drawImage(img, 0, 0, dimensions.width, dimensions.height);
+        };
+    }, [dimensions, imageSrc]);
 
     useEffect(() => {
         const canvas = overlayCanvasRef.current;
@@ -239,24 +210,16 @@ const MaskLayer = forwardRef<{
         if (previewBox) {
             const w = canvas.width;
             const h = canvas.height;
-            const padding = 20; 
-            
-            const ymin = Math.max(0, previewBox[0] - padding) / 1000 * h;
-            const xmin = Math.max(0, previewBox[1] - padding) / 1000 * w;
-            const ymax = Math.min(1000, previewBox[2] + padding) / 1000 * h;
-            const xmax = Math.min(1000, previewBox[3] + padding) / 1000 * w;
+            const ymin = (previewBox[0] / 1000) * h;
+            const xmin = (previewBox[1] / 1000) * w;
+            const ymax = (previewBox[2] / 1000) * h;
+            const xmax = (previewBox[3] / 1000) * w;
 
             ctx.save();
             ctx.strokeStyle = '#AAC48C'; 
             ctx.lineWidth = 2;
             ctx.setLineDash([8, 6]); 
-            ctx.lineCap = 'round';
-            ctx.shadowColor = '#AAC48C';
-            ctx.shadowBlur = 10;
-            
             ctx.strokeRect(xmin, ymin, xmax - xmin, ymax - ymin);
-            ctx.fillStyle = 'rgba(170, 196, 140, 0.15)';
-            ctx.fillRect(xmin, ymin, xmax - xmin, ymax - ymin);
             ctx.restore();
         }
     }, [previewBox, dimensions]);
@@ -265,8 +228,7 @@ const MaskLayer = forwardRef<{
         if (!isDrawing) return;
         const maskCanvas = maskCanvasRef.current;
         const maskCtx = maskCanvas?.getContext('2d');
-        const logicCanvas = logicCanvasRef.current;
-        const logicCtx = logicCanvas?.getContext('2d');
+        const logicCtx = logicCanvasRef.current?.getContext('2d');
         if (!maskCtx || !maskCanvas || !logicCtx) return;
         const rect = maskCanvas.getBoundingClientRect();
         let clientX, clientY;
@@ -289,17 +251,11 @@ const MaskLayer = forwardRef<{
         if (mode === 'brush') {
             maskCtx.globalCompositeOperation = 'source-over';
             maskCtx.strokeStyle = 'rgba(106, 122, 90, 0.7)'; 
-            maskCtx.shadowBlur = 5;
-            maskCtx.shadowColor = '#6A7A5A';
             logicCtx.globalCompositeOperation = 'source-over';
             logicCtx.strokeStyle = '#FFFFFF'; 
-            logicCtx.shadowBlur = 0;
         } else {
             maskCtx.globalCompositeOperation = 'destination-out';
-            maskCtx.strokeStyle = 'rgba(0,0,0,1)';
-            maskCtx.shadowBlur = 0;
             logicCtx.globalCompositeOperation = 'destination-out';
-            logicCtx.strokeStyle = 'rgba(0,0,0,1)';
         }
 
         maskCtx.lineTo(x, y);
@@ -315,29 +271,25 @@ const MaskLayer = forwardRef<{
     const start = (e: React.MouseEvent | React.TouchEvent) => {
         setIsDrawing(true);
         onMaskUpdate(true);
-        const maskCtx = maskCanvasRef.current?.getContext('2d');
-        const logicCtx = logicCanvasRef.current?.getContext('2d');
-        maskCtx?.beginPath();
-        logicCtx?.beginPath();
+        maskCanvasRef.current?.getContext('2d')?.beginPath();
+        logicCanvasRef.current?.getContext('2d')?.beginPath();
         draw(e);
     };
 
     const end = () => {
         setIsDrawing(false);
-        const maskCtx = maskCanvasRef.current?.getContext('2d');
-        const logicCtx = logicCanvasRef.current?.getContext('2d');
-        maskCtx?.beginPath();
-        logicCtx?.beginPath();
+        maskCanvasRef.current?.getContext('2d')?.beginPath();
+        logicCanvasRef.current?.getContext('2d')?.beginPath();
     }
 
     return (
-        <div ref={containerRef} className="relative w-full flex justify-center bg-background/40 rounded-3xl overflow-hidden min-h-[500px]">
-            <canvas ref={bgCanvasRef} className="absolute top-0 left-auto z-10 opacity-60" />
-            <canvas ref={logicCanvasRef} className="absolute top-0 left-auto z-0 opacity-0 pointer-events-none" /> 
-            <canvas ref={overlayCanvasRef} className="absolute top-0 left-auto z-30 pointer-events-none" /> 
+        <div className="relative overflow-hidden bg-black/20 rounded-2xl" style={{ width: dimensions.width, height: dimensions.height }}>
+            <canvas ref={bgCanvasRef} className="absolute inset-0 z-10 opacity-70" />
+            <canvas ref={logicCanvasRef} className="absolute inset-0 z-0 opacity-0 pointer-events-none" /> 
+            <canvas ref={overlayCanvasRef} className="absolute inset-0 z-30 pointer-events-none" /> 
             <canvas 
                 ref={maskCanvasRef}
-                className="relative z-20 cursor-crosshair touch-none mix-blend-screen"
+                className="absolute inset-0 z-20 cursor-crosshair touch-none"
                 onMouseDown={start}
                 onMouseMove={draw}
                 onMouseUp={end}
@@ -346,7 +298,6 @@ const MaskLayer = forwardRef<{
                 onTouchMove={draw}
                 onTouchEnd={end}
             />
-            <div className="absolute inset-0 z-0 opacity-10" style={{backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
         </div>
     )
 });

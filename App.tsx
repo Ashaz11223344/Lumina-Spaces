@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { AppState, GenerationSettings, StylePreset, LightingOption, GenerationResult, DesignSuggestion, ProductItem, BudgetItem, RoomType, UserProfile, SavedPreset } from './types';
+import { AppState, GenerationSettings, StylePreset, LightingOption, GenerationResult, DesignSuggestion, ProductItem, BudgetItem, RoomType, UserProfile, SavedPreset, Project } from './types';
 import UploadZone from './components/UploadZone';
 import MaskCanvas, { MaskCanvasHandle } from './components/MaskCanvas';
 import ControlPanel from './components/ControlPanel';
@@ -11,8 +11,10 @@ import WelcomeScreen from './components/WelcomeScreen';
 import ThreeDViewer from './components/ThreeDViewer'; 
 import LoginModal from './components/LoginModal';
 import SettingsModal from './components/SettingsModal';
+import ImageSlider from './components/ImageSlider';
+import ProductVisualDiscovery from './components/ProductVisualDiscovery';
 import { orchestrateDesign, generateRoomImage, detectRoomImprovements, analyzeShoppableItems, estimateRenovationCost, generateDepthMap } from './services/geminiService';
-import { ArrowLeft, Download, Info, Sparkles, Layers, PenTool, Box, User, LogOut, CloudCheck, Settings as SettingsIcon, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Download, Info, Sparkles, Layers, PenTool, Box, User, LogOut, CloudCheck, Settings as SettingsIcon, ChevronDown, Save, CheckCircle2, FileUp, FileDown, Search, Menu, X, Plus } from 'lucide-react';
 
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(true);
@@ -27,6 +29,12 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isSavingProject, setIsSavingProject] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Discovery UI State
+  const [showProductPins, setShowProductPins] = useState(true);
 
   const [settings, setSettings] = useState<GenerationSettings>({
     prompt: '',
@@ -62,6 +70,7 @@ export default function App() {
 
   const maskCanvasRef = useRef<MaskCanvasHandle>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Persistence logic: Load from localStorage on mount
   useEffect(() => {
@@ -76,14 +85,13 @@ export default function App() {
         if (savedHistory) setHistory(JSON.parse(savedHistory));
         
         const savedBudgets = localStorage.getItem(`lumina_budgets_${parsedUser.id}`);
-        if (savedBudgets) setBudgetHistory(JSON.parse(savedBudgets));
+        if (savedHistory) setBudgetHistory(JSON.parse(savedBudgets));
       } catch (e) {
         console.warn("Session restore failed, clearing stale data.");
         localStorage.removeItem('lumina_current_user');
       }
     }
 
-    // Handle clicks outside user menu
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setIsUserMenuOpen(false);
@@ -93,7 +101,6 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Watch for autoSuggest toggle
   useEffect(() => {
     if (settings.autoSuggest && sourceImage && suggestions.length === 0 && !isAnalyzing) {
       analyzeImage(sourceImage);
@@ -113,7 +120,6 @@ export default function App() {
     setUser(updatedUser);
     localStorage.setItem('lumina_current_user', JSON.stringify(updatedUser));
     
-    // Sync to main "database"
     const dbUsersStr = localStorage.getItem('lumina_db_users');
     if (dbUsersStr) {
       try {
@@ -133,7 +139,6 @@ export default function App() {
     setShowLogin(false);
     localStorage.setItem('lumina_current_user', JSON.stringify(newUser));
     
-    // Load design data for this user
     const savedHistory = localStorage.getItem(`lumina_history_${newUser.id}`);
     if (savedHistory) setHistory(JSON.parse(savedHistory));
     else setHistory([]);
@@ -159,7 +164,6 @@ export default function App() {
     }, 400); 
   };
 
-  // Save design data when user or history changes
   useEffect(() => {
     if (user) {
       localStorage.setItem(`lumina_history_${user.id}`, JSON.stringify(history));
@@ -268,20 +272,110 @@ export default function App() {
       setPreviewBox(null);
   };
 
-  const handleRefineResult = () => {
-    if (result) {
-        const newSource = result.imageUrl;
-        setSourceImage(newSource);
-        setAppState(AppState.EDITOR);
-        setHasMask(false);
-        setResult(null);
-        setOrchestratedInstruction("");
-        setSuggestions([]);
-        setShoppingItems([]);
-        setBudgetItems([]);
-        setPreviewBox(null);
-        if (settings.autoSuggest) analyzeImage(newSource);
+  const handleSaveProject = async () => {
+    if (!sourceImage) return;
+    setIsSavingProject(true);
+    
+    const project: Project = {
+      id: result?.id || `proj-${Date.now()}`,
+      name: `${settings.style} ${settings.roomType} Redesign Redesign`,
+      userId: user?.id,
+      updatedAt: Date.now(),
+      sourceImage: sourceImage,
+      settings: settings,
+      result: result,
+      history: history,
+      shoppingItems: shoppingItems,
+      budgetItems: budgetItems
+    };
+
+    // Simulate network delay for organic feel
+    await new Promise(r => setTimeout(r, 1000));
+
+    const existingProjectsRaw = localStorage.getItem('lumina_projects');
+    const existingProjects: Project[] = existingProjectsRaw ? JSON.parse(existingProjectsRaw) : [];
+    
+    const index = existingProjects.findIndex(p => p.id === project.id);
+    if (index !== -1) {
+      existingProjects[index] = project;
+    } else {
+      existingProjects.push(project);
     }
+
+    localStorage.setItem('lumina_projects', JSON.stringify(existingProjects));
+    
+    setIsSavingProject(false);
+    setShowSaveSuccess(true);
+    setTimeout(() => setShowSaveSuccess(false), 3000);
+  };
+
+  const handleExportTemplate = () => {
+    if (!sourceImage) return;
+    
+    const project: Project = {
+      id: result?.id || `template-${Date.now()}`,
+      name: `${settings.style} ${settings.roomType} Redesign Template Template`,
+      userId: user?.id,
+      updatedAt: Date.now(),
+      sourceImage: sourceImage,
+      settings: settings,
+      result: result,
+      history: history,
+      shoppingItems: shoppingItems,
+      budgetItems: budgetItems
+    };
+
+    const dataStr = JSON.stringify(project, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `lumina-template-${project.id}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const project = JSON.parse(event.target?.result as string) as Project;
+        
+        // Restore State
+        setSourceImage(project.sourceImage);
+        setSettings(project.settings);
+        setHistory(project.history || []);
+        setResult(project.result || null);
+        setShoppingItems(project.shoppingItems || []);
+        setBudgetItems(project.budgetItems || []);
+        
+        if (project.result) {
+          setAppState(AppState.RESULTS);
+        } else if (project.sourceImage) {
+          setAppState(AppState.EDITOR);
+        } else {
+          setAppState(AppState.UPLOAD);
+        }
+        
+        // If results exist, also try to rebuild budget history
+        if (project.budgetItems.length > 0 && project.result) {
+          setBudgetHistory([{ id: project.result.id, items: project.budgetItems }]);
+        }
+
+        // Reset input
+        if (importInputRef.current) importInputRef.current.value = "";
+      } catch (err) {
+        console.error("Failed to import template:", err);
+        setErrorMsg("Invalid template file format.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   const handleStartOver = () => {
@@ -318,6 +412,10 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
     }
+  };
+
+  const handleRefineResult = () => {
+    setAppState(AppState.EDITOR);
   };
 
   const handleView3D = async () => {
@@ -385,7 +483,16 @@ export default function App() {
         />
       )}
       
-      <div className={`min-h-screen font-sans text-accent pb-20 relative overflow-x-hidden selection:bg-primary/30 selection:text-white transition-opacity duration-1000 ${showWelcome ? 'opacity-0' : 'opacity-100'}`}>
+      {/* Hidden file input for loading templates */}
+      <input 
+        ref={importInputRef}
+        type="file" 
+        accept=".json" 
+        onChange={handleImportTemplate} 
+        className="hidden" 
+      />
+
+      <div className={`min-h-screen font-sans text-accent pb-12 lg:pb-20 relative overflow-x-hidden selection:bg-primary/30 selection:text-white transition-opacity duration-1000 ${showWelcome ? 'opacity-0' : 'opacity-100'}`}>
         
         <div className="fixed inset-0 -z-10 bg-background overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-tertiary/20 rounded-full blur-[120px] animate-blob mix-blend-screen" />
@@ -402,19 +509,63 @@ export default function App() {
             />
         )}
 
-        <header className="sticky top-0 z-50 glass-panel border-b border-white/5 h-24">
-          <div className="max-w-[1700px] mx-auto px-10 h-full flex items-center justify-between">
-            <div className="flex items-center gap-5 cursor-pointer group" onClick={() => window.location.reload()}>
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-2xl shadow-primary/30 group-hover:rotate-12 transition-transform duration-500">
-                <Sparkles size={24} className="text-white fill-white/20" />
+        <header className="sticky top-0 z-50 glass-panel border-b border-white/5 h-20 lg:h-24">
+          <div className="max-w-[1700px] mx-auto px-4 lg:px-10 h-full flex items-center justify-between">
+            <div className="flex items-center gap-3 lg:gap-5 cursor-pointer group" onClick={() => window.location.reload()}>
+              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-2xl shadow-primary/30 group-hover:rotate-12 transition-transform duration-500">
+                <Sparkles size={20} className="text-white lg:w-6 lg:h-6" />
               </div>
-              <div>
-                <span className="text-3xl font-display font-bold tracking-tighter text-white block leading-none">Lumina</span>
-                <span className="text-[10px] uppercase tracking-[0.4em] text-secondary font-black mt-1.5 block">Studio Suite</span>
+              <div className="hidden sm:block">
+                <span className="text-xl lg:text-3xl font-display font-bold tracking-tighter text-white block leading-none">Lumina</span>
+                <span className="text-[8px] lg:text-[10px] uppercase tracking-[0.4em] text-secondary font-black mt-1 block">Studio Suite</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3 lg:gap-6">
+               <div className="hidden lg:flex items-center gap-3">
+                 {(appState === AppState.EDITOR || appState === AppState.RESULTS) && (
+                    <>
+                      <button 
+                        onClick={handleExportTemplate}
+                        className="flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10"
+                        title="Save Template as JSON"
+                      >
+                        <FileDown size={16} />
+                        Save Template
+                      </button>
+
+                      <button 
+                        onClick={handleSaveProject}
+                        disabled={isSavingProject}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                          showSaveSuccess 
+                          ? 'bg-secondary/20 border-secondary text-secondary' 
+                          : 'bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {isSavingProject ? (
+                          <div className="w-4 h-4 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+                        ) : showSaveSuccess ? (
+                          <CheckCircle2 size={16} />
+                        ) : (
+                          <Save size={16} />
+                        )}
+                        {showSaveSuccess ? 'Project Synced' : 'Sync Project'}
+                      </button>
+                    </>
+                 )}
+
+                 {appState === AppState.UPLOAD && (
+                   <button 
+                     onClick={() => importInputRef.current?.click()}
+                     className="flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10"
+                   >
+                     <FileUp size={16} />
+                     Load Template
+                   </button>
+                 )}
+               </div>
+
                {appState !== AppState.UPLOAD && (
                   <button 
                     type="button" 
@@ -426,16 +577,16 @@ export default function App() {
                   </button>
                )}
 
-               <div className="h-10 w-px bg-white/10 hidden sm:block" />
+               <div className="h-10 w-px bg-white/10 hidden lg:block" />
 
                {user ? (
                  <div className="relative" ref={userMenuRef}>
                     <button 
                       onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                      className={`flex items-center gap-4 pl-2 pr-5 py-2 rounded-2xl transition-all ${isUserMenuOpen ? 'bg-white/10 border-white/20' : 'bg-transparent border-transparent'} border`}
+                      className={`flex items-center gap-2 lg:gap-4 pl-1 lg:pl-2 pr-3 lg:pr-5 py-1 lg:py-2 rounded-2xl transition-all ${isUserMenuOpen ? 'bg-white/10 border-white/20' : 'bg-transparent border-transparent'} border`}
                     >
-                       <img src={user.avatar} alt="Avatar" className="w-12 h-12 rounded-2xl border-2 border-secondary/40 shadow-2xl" />
-                       <div className="hidden md:flex flex-col items-start">
+                       <img src={user.avatar} alt="Avatar" className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl border-2 border-secondary/40 shadow-2xl" />
+                       <div className="hidden lg:flex flex-col items-start text-left">
                           <span className="text-sm font-bold text-white leading-none flex items-center gap-1.5">
                              {user.name}
                              <CloudCheck size={14} className="text-tertiary" />
@@ -446,7 +597,7 @@ export default function App() {
                     </button>
 
                     <div 
-                      className={`absolute top-full right-0 mt-4 w-72 glass-panel p-4 rounded-[2.5rem] border border-white/10 shadow-2xl transition-all duration-400 origin-top-right z-[100] 
+                      className={`absolute top-full right-0 mt-4 w-64 lg:w-72 glass-panel p-4 rounded-[2.5rem] border border-white/10 shadow-2xl transition-all duration-400 origin-top-right z-[100] 
                         ${isUserMenuOpen && !isSigningOut ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-4 scale-90 pointer-events-none'}`}
                     >
                         <div className="p-4 mb-3 bg-white/5 rounded-2xl border border-white/5">
@@ -461,6 +612,15 @@ export default function App() {
                              <SettingsIcon size={18} />
                            </div>
                            Studio Settings
+                        </button>
+                        <button 
+                          onClick={() => { setIsUserMenuOpen(false); handleStartOver(); }}
+                          className="lg:hidden w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 text-sm text-slate-300 hover:text-white transition-all group"
+                        >
+                           <div className="p-2.5 rounded-xl bg-white/5 group-hover:bg-secondary/20 transition-colors">
+                             <Plus size={18} />
+                           </div>
+                           New Session
                         </button>
                         <div className="h-px bg-white/5 my-3 mx-4" />
                         <button 
@@ -477,48 +637,92 @@ export default function App() {
                ) : (
                  <button 
                    onClick={() => setShowLogin(true)}
-                   className="flex items-center gap-4 px-10 py-4 rounded-2xl bg-pale text-background text-[10px] font-black uppercase tracking-[0.3em] hover:bg-secondary hover:text-white transition-all group shadow-2xl shadow-white/5"
+                   className="flex items-center gap-3 lg:gap-4 px-6 lg:px-10 py-3 lg:py-4 rounded-2xl bg-pale text-background text-[10px] font-black uppercase tracking-[0.3em] hover:bg-secondary hover:text-white transition-all group shadow-2xl shadow-white/5"
                  >
                    <User size={18} className="transition-transform group-hover:scale-110" />
-                   Studio Portal
+                   Portal
                  </button>
                )}
+
+               <button 
+                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                 className="lg:hidden p-3 rounded-2xl bg-white/5 border border-white/10 text-white"
+               >
+                 {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+               </button>
             </div>
           </div>
+          
+          {/* Mobile Overlay Menu */}
+          {isMobileMenuOpen && (
+            <div className="lg:hidden fixed inset-0 top-20 bg-background/95 backdrop-blur-xl z-[40] p-6 animate-fade-in flex flex-col gap-4">
+              <button 
+                onClick={() => { importInputRef.current?.click(); setIsMobileMenuOpen(false); }}
+                className="flex items-center gap-4 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-white text-sm font-bold uppercase tracking-widest"
+              >
+                <FileUp size={20} className="text-secondary" />
+                Load Template
+              </button>
+              {(appState === AppState.EDITOR || appState === AppState.RESULTS) && (
+                <>
+                  <button 
+                    onClick={() => { handleExportTemplate(); setIsMobileMenuOpen(false); }}
+                    className="flex items-center gap-4 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-white text-sm font-bold uppercase tracking-widest"
+                  >
+                    <FileDown size={20} className="text-secondary" />
+                    Save Template
+                  </button>
+                  <button 
+                    onClick={() => { handleSaveProject(); setIsMobileMenuOpen(false); }}
+                    className="flex items-center gap-4 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-white text-sm font-bold uppercase tracking-widest"
+                  >
+                    <Save size={20} className="text-secondary" />
+                    Sync Project
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </header>
 
-        <main className="max-w-[1700px] mx-auto px-10 py-16">
+        <main className="max-w-[1700px] mx-auto px-4 lg:px-10 py-8 lg:py-16">
           {errorMsg && (
-            <div className="mb-12 p-6 bg-red-900/20 backdrop-blur-2xl border border-red-500/30 text-red-200 rounded-[2.5rem] flex items-center gap-5 shadow-2xl animate-fade-in max-w-2xl mx-auto">
-               <div className="p-3.5 bg-red-500/20 rounded-2xl text-red-400"><Info size={28} /></div>
+            <div className="mb-8 lg:mb-12 p-4 lg:p-6 bg-red-900/20 backdrop-blur-2xl border border-red-500/30 text-red-200 rounded-[2rem] lg:rounded-[2.5rem] flex items-center gap-4 lg:gap-5 shadow-2xl animate-fade-in max-w-2xl mx-auto">
+               <div className="p-3 bg-red-500/20 rounded-xl text-red-400"><Info size={24} className="lg:w-7 lg:h-7" /></div>
                <div>
-                  <h4 className="font-black text-white uppercase text-[10px] tracking-widest mb-1">Architectural Alert</h4>
-                  <p className="text-sm opacity-80 leading-relaxed">{errorMsg}</p>
+                  <h4 className="font-black text-white uppercase text-[9px] lg:text-[10px] tracking-widest mb-0.5 lg:mb-1">Architectural Alert</h4>
+                  <p className="text-xs lg:text-sm opacity-80 leading-relaxed">{errorMsg}</p>
+                  <button 
+                    onClick={() => setErrorMsg(null)}
+                    className="text-[8px] lg:text-[9px] uppercase font-bold tracking-widest text-red-300 mt-1 lg:mt-2 hover:text-white underline"
+                  >
+                    Dismiss
+                  </button>
                </div>
             </div>
           )}
 
           {appState === AppState.UPLOAD && (
-            <div className="max-w-5xl mx-auto mt-12 md:mt-24 animate-fade-in text-center relative">
-               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-40 w-[600px] h-[600px] bg-primary/20 blur-[180px] rounded-full pointer-events-none" />
-               <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white/5 border border-white/10 text-[10px] font-black text-secondary uppercase tracking-[0.4em] mb-12 backdrop-blur-md">
-                <div className="w-2.5 h-2.5 rounded-full bg-tertiary animate-pulse shadow-lg shadow-tertiary/50" />
+            <div className="max-w-5xl mx-auto mt-8 lg:mt-24 animate-fade-in text-center relative">
+               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-40 w-[300px] lg:w-[600px] h-[300px] lg:h-[600px] bg-primary/20 blur-[100px] lg:blur-[180px] rounded-full pointer-events-none" />
+               <div className="inline-flex items-center gap-2 lg:gap-3 px-4 lg:px-6 py-2 lg:py-3 rounded-full bg-white/5 border border-white/10 text-[8px] lg:text-[10px] font-black text-secondary uppercase tracking-[0.3em] lg:tracking-[0.4em] mb-8 lg:mb-12 backdrop-blur-md">
+                <div className="w-2 lg:w-2.5 h-2 lg:h-2.5 rounded-full bg-tertiary animate-pulse shadow-lg shadow-tertiary/50" />
                 Visionary Core Online
               </div>
-              <h1 className="text-7xl md:text-[9rem] font-display font-bold mb-12 tracking-tighter leading-[0.8] text-transparent bg-clip-text bg-gradient-to-b from-accent via-accent to-accent/20 drop-shadow-2xl">
+              <h1 className="text-5xl lg:text-[9rem] font-display font-bold mb-8 lg:mb-12 tracking-tighter leading-[0.9] lg:leading-[0.8] text-transparent bg-clip-text bg-gradient-to-b from-white via-accent to-accent/20 drop-shadow-2xl px-2">
                 Redesign <br className="hidden md:block" /> Reality
               </h1>
-              <p className="text-accent/60 mb-20 text-xl md:text-3xl max-w-3xl mx-auto leading-relaxed font-light">
+              <p className="text-accent/60 mb-12 lg:mb-20 text-lg lg:text-3xl max-w-2xl lg:max-w-3xl mx-auto leading-relaxed font-light px-4">
                 {user ? (
                   <>Welcome back, <span className="text-white font-bold">{user.name.split(' ')[0]}</span>. Your architectural suite is synchronized.</>
                 ) : "Transform your spatial environment with high-fidelity vision orchestration."}
               </p>
-              <div className="glass-panel p-4 rounded-[4rem] shadow-[0_0_100px_-20px_rgba(170,196,140,0.4)] border-white/10">
-                 <UploadZone onImageSelected={handleImageSelected} />
+              <div className="glass-panel p-2 lg:p-4 rounded-[3rem] lg:rounded-[4rem] shadow-[0_0_100px_-20px_rgba(170,196,140,0.4)] border-white/10">
+                 <UploadZone onImageSelected={handleImageSelected} onLoadTemplate={() => importInputRef.current?.click()} />
               </div>
 
               {history.length > 0 && (
-                <div className="mt-28 text-left">
+                <div className="mt-16 lg:mt-28 text-left">
                     <HistoryPanel history={history} activeResultId={result?.id || ""} onSelectResult={handleRestoreHistory} />
                 </div>
               )}
@@ -526,10 +730,10 @@ export default function App() {
           )}
 
           {(appState === AppState.EDITOR || appState === AppState.GENERATING) && sourceImage && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-14 lg:gap-20 animate-fade-in">
-              <div className="lg:col-span-8 flex flex-col gap-14">
-                <div className="glass-panel rounded-[4rem] shadow-2xl overflow-hidden relative group border-white/10">
-                   <div className="p-3">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-20 animate-fade-in items-start">
+              <div className="lg:col-span-8 flex flex-col gap-8 lg:gap-14">
+                <div className="glass-panel rounded-[2.5rem] lg:rounded-[4rem] shadow-2xl overflow-hidden relative group border-white/10 flex items-center justify-center min-h-[500px]">
+                   <div className="p-2 lg:p-3 w-full flex justify-center">
                      <MaskCanvas 
                         key={sourceImage}
                         ref={maskCanvasRef} 
@@ -539,30 +743,23 @@ export default function App() {
                       />
                    </div>
                    {isGenerating && (
-                     <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center">
-                        <div className="relative mb-12">
-                          <div className="animate-spin rounded-full h-40 w-40 border-t-2 border-b-2 border-secondary shadow-[0_0_70px_rgba(170,196,140,0.5)]"></div>
+                     <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center">
+                        <div className="relative mb-8 lg:mb-12">
+                          <div className="animate-spin rounded-full h-24 w-24 lg:h-40 lg:w-40 border-t-2 border-b-2 border-secondary shadow-[0_0_70px_rgba(170,196,140,0.5)]"></div>
                           <div className="absolute inset-0 flex items-center justify-center">
-                            <Sparkles size={48} className="text-secondary animate-pulse" />
+                            <Sparkles size={32} className="text-secondary animate-pulse lg:w-12 lg:h-12" />
                           </div>
                         </div>
-                        <p className="text-4xl font-display font-bold text-white animate-pulse tracking-tight mb-3">
+                        <p className="text-2xl lg:text-4xl font-display font-bold text-white animate-pulse tracking-tight mb-2">
                           {orchestratedInstruction ? "Synthesizing Space..." : "Orchestrating Architecture..."}
                         </p>
-                        <span className="text-[10px] uppercase text-secondary font-black tracking-[0.5em] opacity-60">Synchronizing design matrix</span>
+                        <span className="text-[8px] lg:text-[10px] uppercase text-secondary font-black tracking-[0.3em] lg:tracking-[0.5em] opacity-60">Synchronizing design matrix</span>
                      </div>
                    )}
                 </div>
-                <div className="flex items-center gap-8 p-10 bg-primary/10 backdrop-blur rounded-[3rem] border border-white/5 shadow-2xl">
-                  <div className="w-16 h-16 rounded-[1.5rem] bg-white/5 flex items-center justify-center text-secondary flex-shrink-0 border border-white/10 shadow-xl"><Info size={32} /></div>
-                  <div className="text-lg text-accent/80">
-                    <span className="block font-black text-white uppercase tracking-[0.3em] text-xs mb-3">Inpainting Engine Active</span>
-                    Define the object volume roughly. The AI identifies edges and calculates visual weight for a perfect organic merge.
-                  </div>
-                </div>
               </div>
-              <div className="lg:col-span-4">
-                 <div className="glass-panel p-10 md:p-12 rounded-[4rem] sticky top-36 border border-white/10 shadow-2xl">
+              <div className="lg:col-span-4 sticky top-28 lg:top-36">
+                 <div className="glass-panel p-6 lg:p-12 rounded-[2.5rem] lg:rounded-[4rem] border border-white/10 shadow-2xl">
                     <ControlPanel 
                       settings={settings} 
                       onChange={setSettings} 
@@ -584,62 +781,66 @@ export default function App() {
 
           {appState === AppState.RESULTS && result && (
              <div className="max-w-[1600px] mx-auto animate-fade-in">
-                <div className="flex justify-between items-center mb-12">
-                   <button onClick={() => setAppState(AppState.EDITOR)} className="group flex items-center gap-4 pl-8 pr-10 py-5 rounded-[2rem] bg-white/5 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-xs hover:bg-white/10 hover:text-secondary transition-all backdrop-blur-xl">
-                     <ArrowLeft size={20} className="group-hover:-translate-x-1.5 transition-transform" />
-                     Back to Studio
+                <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-8 lg:mb-12">
+                   <button onClick={() => setAppState(AppState.EDITOR)} className="group flex items-center self-start gap-4 pl-6 lg:pl-8 pr-8 lg:pr-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] bg-white/5 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs hover:bg-white/10 hover:text-secondary transition-all backdrop-blur-xl">
+                     <ArrowLeft size={16} className="lg:w-5 lg:h-5 group-hover:-translate-x-1.5 transition-transform" />
+                     Return
                    </button>
                    
-                   <div className="flex gap-5">
+                   <div className="flex flex-wrap gap-2 lg:gap-4">
+                      <button 
+                        onClick={() => setShowProductPins(!showProductPins)}
+                        className={`px-6 lg:px-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 transition-all border ${showProductPins ? 'bg-secondary text-background border-secondary' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
+                      >
+                        <Search size={18} className="lg:w-6 lg:h-6" />
+                        Pins {showProductPins ? 'ON' : 'OFF'}
+                      </button>
+
                       <button 
                         onClick={handleView3D}
                         disabled={isGeneratingDepth}
-                        className="bg-white/5 text-white px-10 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 hover:bg-white/10 border border-white/10 transition-all disabled:opacity-50"
+                        className="bg-white/5 text-white px-6 lg:px-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 hover:bg-white/10 border border-white/10 transition-all disabled:opacity-50"
                       >
-                        {isGeneratingDepth ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"/> : <Box size={24} />}
-                        3D Hologram
+                        {isGeneratingDepth ? <div className="animate-spin h-4 w-4 lg:h-5 lg:w-5 border-2 border-white border-t-transparent rounded-full"/> : <Box size={18} className="lg:w-6 lg:h-6" />}
+                        3D View
                       </button>
 
-                      <button onClick={handleDownload} className="hidden md:flex bg-white/5 text-white px-10 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs items-center gap-4 hover:bg-white/10 border border-white/10 transition-all">
-                        <Download size={24} />
-                        Export
+                      <button onClick={handleDownload} className="bg-white/5 text-white px-6 lg:px-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 hover:bg-white/10 border border-white/10 transition-all">
+                        <Download size={18} className="lg:w-6 lg:h-6" />
+                        Save
                       </button>
-                      <button onClick={handleRefineResult} className="bg-primary hover:bg-secondary text-white px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 shadow-[0_0_60px_rgba(106,122,90,0.5)] transition-all hover:scale-105 active:scale-95">
-                        <Layers size={24} />
-                        Refine Render
+                      
+                      <button onClick={handleRefineResult} className="bg-primary hover:bg-secondary text-white px-8 lg:px-12 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 shadow-[0_0_60px_rgba(106,122,90,0.5)] transition-all hover:scale-105 active:scale-95">
+                        <Layers size={18} className="lg:w-6 lg:h-6" />
+                        Refine
                       </button>
                    </div>
                 </div>
 
-                <div className="glass-panel rounded-[5rem] overflow-hidden shadow-2xl border-white/10 mb-20">
-                   <div className="grid grid-cols-1 lg:grid-cols-2">
-                      <div className="relative group border-b lg:border-b-0 lg:border-r border-white/10 h-[50vh] lg:h-[85vh] overflow-hidden">
-                         <div className="absolute top-12 left-12 bg-black/75 backdrop-blur-2xl text-white text-[11px] font-black px-8 py-3 rounded-full z-10 border border-white/10 uppercase tracking-[0.5em]">Origin</div>
-                         <img src={sourceImage || ""} alt="Original" className="w-full h-full object-cover opacity-80 transition-transform duration-1200 group-hover:scale-110 group-hover:opacity-100" />
-                      </div>
-                      <div className="relative group h-[50vh] lg:h-[85vh] overflow-hidden bg-black/80">
-                         <div className="absolute top-12 left-12 bg-gradient-to-r from-primary/95 to-secondary/95 backdrop-blur-2xl text-white text-[11px] font-black px-8 py-3 rounded-full z-10 flex items-center gap-4 shadow-2xl border border-white/20 uppercase tracking-[0.5em]">
-                            <Sparkles size={16} className="fill-current animate-pulse text-glow" />
-                            Final Render
-                         </div>
-                         <img src={result.imageUrl} alt="Generated" className="w-full h-full object-cover transition-transform duration-1200 group-hover:scale-110" />
-                         <div className="absolute bottom-0 left-0 right-0 p-16 lg:p-20 bg-gradient-to-t from-black via-black/95 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-800 flex items-end justify-between translate-y-12 group-hover:translate-y-0">
-                            <button onClick={handleRefineResult} className="bg-white text-black px-12 py-6 rounded-[2.5rem] font-black uppercase tracking-[0.3em] text-xs flex items-center gap-4 hover:bg-tertiary hover:text-white shadow-2xl hover:shadow-tertiary/50 active:scale-95 transition-all">
-                               <PenTool size={28} />
-                               Iterate Vision
-                            </button>
-                         </div>
-                      </div>
+                <div className="glass-panel rounded-[2.5rem] lg:rounded-[4rem] overflow-hidden shadow-2xl border-white/10 mb-8 lg:mb-12 relative group flex justify-center items-center bg-black/20">
+                   <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                     <ImageSlider 
+                      beforeImage={sourceImage || ""} 
+                      afterImage={result.imageUrl} 
+                      beforeLabel="Origin"
+                      afterLabel="Architectural Render"
+                     />
                    </div>
+                   
+                   {/* Product Discovery Overlay */}
+                   <ProductVisualDiscovery 
+                     products={shoppingItems} 
+                     isVisible={showProductPins} 
+                   />
                 </div>
                 
                 {history.length > 0 && (
-                   <div className="mb-24">
+                   <div className="mb-12 lg:mb-24">
                      <HistoryPanel history={history} activeResultId={result.id} onSelectResult={handleRestoreHistory} />
                    </div>
                 )}
                 
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-14">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-14">
                   <ShoppingPanel items={shoppingItems} isLoading={isShoppingLoading} />
                   <BudgetPanel currentItems={currentBudgetRound} history={pastBudgetHistory} isLoading={isBudgetLoading} />
                 </div>
