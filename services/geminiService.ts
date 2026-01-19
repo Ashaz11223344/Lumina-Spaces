@@ -45,6 +45,7 @@ export const detectRoomImprovements = async (base64Image: string, roomType?: str
     Focus on items that can be replaced or added.
     For each item, identify its position in the image.
     Provide the bounding box as "box_2d": [ymin, xmin, ymax, xmax] using scale 0-1000.
+    Be creative and architecturally sound.
   `;
 
   try {
@@ -95,14 +96,17 @@ export const orchestrateDesign = async (settings: GenerationSettings, base64Imag
   const prompt = `
     Task: Act as a master architect. Refine the user's design prompt into a highly detailed visual instruction for an image generation model.
     
+    CRITICAL CONSTRAINT: 
+    The architectural structure must be preserved exactly. The ceilings, window positions, window sizes, and wall dimensions must not be changed, moved, or resized. They should be exactly as they appear in the original image.
+    
     Context:
     - Room: ${settings.roomType}
     - User Request: "${settings.prompt}"
     - Style: ${settings.style}
     - Lighting: ${settings.lighting}
-    - Masking: ${maskBase64 ? "The user has selected a specific area to modify." : "The whole room will be redesigned."}
+    - Masking: ${maskBase64 ? "The user has selected a specific area to modify." : "The whole room will be redesigned while respecting fixed architecture."}
     
-    Output a single paragraph of detailed descriptive text that captures the textures, materials, and lighting atmosphere. Do not include introductory text.
+    Output a single paragraph of detailed descriptive text that captures the textures, materials, and lighting atmosphere. Ensure the description implies the preservation of existing structural elements like windows and ceilings. Do not include introductory text.
   `;
 
   try {
@@ -138,7 +142,10 @@ export const generateRoomImage = async (base64Image: string, prompt: string, mas
   const contents: any = {
     parts: [
       { inlineData: { mimeType: 'image/jpeg', data: (await resizeImageForVision(base64Image)).split(',')[1] } },
-      { text: prompt }
+      { text: `
+        Strict Requirement: The resulting image must keep the room's core dimensions, ceilings, and window positions exactly as they are in the original. Do not move, resize, or break the architecture. 
+        Focus on: ${prompt}
+      ` }
     ]
   };
 
@@ -146,7 +153,7 @@ export const generateRoomImage = async (base64Image: string, prompt: string, mas
     contents.parts.push({
       inlineData: { mimeType: 'image/png', data: maskBase64.split(',')[1] }
     });
-    contents.parts.push({ text: "Only modify the area specified by the mask. Seamlessly blend the new design with the existing architecture." });
+    contents.parts.push({ text: "Only modify the area specified by the mask. Seamlessly blend the new design with the existing fixed structural boundaries." });
   }
 
   try {

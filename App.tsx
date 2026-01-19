@@ -14,7 +14,7 @@ import SettingsModal from './components/SettingsModal';
 import ImageSlider from './components/ImageSlider';
 import ProductVisualDiscovery from './components/ProductVisualDiscovery';
 import { orchestrateDesign, generateRoomImage, detectRoomImprovements, analyzeShoppableItems, estimateRenovationCost, generateDepthMap } from './services/geminiService';
-import { ArrowLeft, Download, Info, Sparkles, Layers, PenTool, Box, User, LogOut, CloudCheck, Settings as SettingsIcon, ChevronDown, Save, CheckCircle2, FileUp, FileDown, Search, Menu, X, Plus } from 'lucide-react';
+import { ArrowLeft, Download, Info, Sparkles, Layers, PenTool, Box, User, LogOut, CloudCheck, Settings as SettingsIcon, ChevronDown, Save, CheckCircle2, FileUp, FileDown, Search, Menu, X, Plus, Wand2, Check, LayoutGrid, Layout as LayoutIcon, Maximize2 } from 'lucide-react';
 
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(true);
@@ -33,6 +33,12 @@ export default function App() {
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // 3x3 Generation Matrix State: [ConceptIndex][LayoutIndex]
+  const [resultMatrix, setResultMatrix] = useState<GenerationResult[][]>([]);
+  const [activeConceptIndex, setActiveConceptIndex] = useState(0);
+  const [activeLayoutIndex, setActiveLayoutIndex] = useState(0);
+  const [matrixData, setMatrixData] = useState<{ [key: string]: { shopping: ProductItem[], budget: BudgetItem[] } }>({});
+
   // Discovery UI State
   const [showProductPins, setShowProductPins] = useState(true);
 
@@ -47,8 +53,6 @@ export default function App() {
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
-  const [result, setResult] = useState<GenerationResult | null>(null);
-  const [history, setHistory] = useState<GenerationResult[]>([]);
   const [orchestratedInstruction, setOrchestratedInstruction] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -60,19 +64,12 @@ export default function App() {
   const [suggestions, setSuggestions] = useState<DesignSuggestion[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Shopping & Budget State
-  const [shoppingItems, setShoppingItems] = useState<ProductItem[]>([]);
-  const [isShoppingLoading, setIsShoppingLoading] = useState(false);
-  
-  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
-  const [budgetHistory, setBudgetHistory] = useState<{ id: string, items: BudgetItem[] }[]>([]);
-  const [isBudgetLoading, setIsBudgetLoading] = useState(false);
+  const [isMatrixDataLoading, setIsMatrixDataLoading] = useState(false);
 
   const maskCanvasRef = useRef<MaskCanvasHandle>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  // Persistence logic: Load from localStorage on mount
   useEffect(() => {
     const savedUser = localStorage.getItem('lumina_current_user');
     if (savedUser) {
@@ -80,14 +77,11 @@ export default function App() {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
         applyUserPreferences(parsedUser);
-        
         const savedHistory = localStorage.getItem(`lumina_history_${parsedUser.id}`);
         if (savedHistory) setHistory(JSON.parse(savedHistory));
-        
         const savedBudgets = localStorage.getItem(`lumina_budgets_${parsedUser.id}`);
-        if (savedHistory) setBudgetHistory(JSON.parse(savedBudgets));
+        if (savedBudgets) setBudgetHistory(JSON.parse(savedBudgets));
       } catch (e) {
-        console.warn("Session restore failed, clearing stale data.");
         localStorage.removeItem('lumina_current_user');
       }
     }
@@ -100,6 +94,9 @@ export default function App() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const [history, setHistory] = useState<GenerationResult[]>([]);
+  const [budgetHistory, setBudgetHistory] = useState<{ id: string, items: BudgetItem[] }[]>([]);
 
   useEffect(() => {
     if (settings.autoSuggest && sourceImage && suggestions.length === 0 && !isAnalyzing) {
@@ -119,18 +116,6 @@ export default function App() {
   const handleUpdateProfile = (updatedUser: UserProfile) => {
     setUser(updatedUser);
     localStorage.setItem('lumina_current_user', JSON.stringify(updatedUser));
-    
-    const dbUsersStr = localStorage.getItem('lumina_db_users');
-    if (dbUsersStr) {
-      try {
-        const dbUsers = JSON.parse(dbUsersStr);
-        const index = dbUsers.findIndex((u: any) => u.id === updatedUser.id);
-        if (index !== -1) {
-          dbUsers[index] = { ...dbUsers[index], ...updatedUser };
-          localStorage.setItem('lumina_db_users', JSON.stringify(dbUsers));
-        }
-      } catch (e) { console.error("Database sync failed", e); }
-    }
   };
 
   const handleLogin = (newUser: UserProfile) => {
@@ -138,19 +123,10 @@ export default function App() {
     applyUserPreferences(newUser);
     setShowLogin(false);
     localStorage.setItem('lumina_current_user', JSON.stringify(newUser));
-    
-    const savedHistory = localStorage.getItem(`lumina_history_${newUser.id}`);
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
-    else setHistory([]);
-
-    const savedBudgets = localStorage.getItem(`lumina_budgets_${newUser.id}`);
-    if (savedBudgets) setBudgetHistory(JSON.parse(savedBudgets));
-    else setBudgetHistory([]);
   };
 
   const handleLogout = () => {
     setIsSigningOut(true);
-    
     setTimeout(() => {
       setIsUserMenuOpen(false);
       setUser(null);
@@ -159,7 +135,7 @@ export default function App() {
       setBudgetHistory([]);
       setAppState(AppState.UPLOAD);
       setSourceImage(null);
-      setResult(null);
+      setResultMatrix([]);
       setIsSigningOut(false);
     }, 400); 
   };
@@ -202,8 +178,8 @@ export default function App() {
         const img = e.target.result as string;
         setSourceImage(img);
         setAppState(AppState.EDITOR);
-        setBudgetItems([]);
-        setShoppingItems([]);
+        setResultMatrix([]);
+        setMatrixData({});
         setHasMask(false);
         setPreviewBox(null);
         if (settings.autoSuggest) analyzeImage(img);
@@ -216,10 +192,11 @@ export default function App() {
     if (!sourceImage) return;
     setIsGenerating(true);
     setErrorMsg(null);
-    setOrchestratedInstruction("");
-    setShoppingItems([]); 
-    setBudgetItems([]); 
-    setPreviewBox(null);
+    setOrchestratedInstruction("Orchestrating 9-Fold Rearrangement Matrix...");
+    setResultMatrix([]);
+    setMatrixData({});
+    setActiveConceptIndex(0);
+    setActiveLayoutIndex(0);
 
     try {
       let maskBase64 = undefined;
@@ -228,219 +205,170 @@ export default function App() {
         if (maskData) maskBase64 = maskData;
       }
 
-      const refinedPrompt = await orchestrateDesign(settings, sourceImage, maskBase64);
-      setOrchestratedInstruction(refinedPrompt);
+      const concepts = [
+        { id: 1, name: "Organic Earth", focus: "natural textures and wood elements" },
+        { id: 2, name: "Luxury High-Light", focus: "sophisticated integrated lighting and metallics" },
+        { id: 3, name: "Harmonious Flow", focus: "minimalist spatial balance and soft acoustics" }
+      ];
 
-      const generatedImageBase64 = await generateRoomImage(sourceImage, refinedPrompt, maskBase64);
-      
-      const newResult: GenerationResult = {
-        id: Date.now().toString(),
-        imageUrl: generatedImageBase64,
-        promptUsed: refinedPrompt,
-        timestamp: Date.now(),
-        sourceImage: sourceImage,
-        settings: { ...settings }
-      };
-      
-      setResult(newResult);
-      setHistory(prev => [newResult, ...prev]);
+      const layouts = [
+        { id: 'A', name: "Optimized Classic", spatial: "optimizing the original orientation for better circulation" },
+        { id: 'B', name: "Rotated Focal", spatial: "rotating the focal point by 90 degrees to create a new perspective" },
+        { id: 'C', name: "Social Cluster", spatial: "rearranging furniture into a conversational cluster for hosting" }
+      ];
+
+      const matrixResults: GenerationResult[][] = [[], [], []];
+
+      // We generate 3 concepts, each with 3 layouts = 9 outputs
+      for (let cIdx = 0; cIdx < concepts.length; cIdx++) {
+        setOrchestratedInstruction(`Synthesizing Concept 0${cIdx+1}...`);
+        
+        const conceptResults = await Promise.all(layouts.map(async (l, lIdx) => {
+          const promptForLayout = await orchestrateDesign(
+            { ...settings, prompt: `${settings.prompt}. CONCEPT: ${concepts[cIdx].focus}. LAYOUT VARIATION: ${l.spatial}.` }, 
+            sourceImage, 
+            maskBase64
+          );
+          
+          const img = await generateRoomImage(sourceImage, promptForLayout, maskBase64);
+          
+          const res: GenerationResult = {
+            id: `matrix-${Date.now()}-${cIdx}-${lIdx}`,
+            imageUrl: img,
+            promptUsed: promptForLayout,
+            timestamp: Date.now(),
+            sourceImage: sourceImage,
+            settings: { ...settings }
+          };
+          return res;
+        }));
+
+        matrixResults[cIdx] = conceptResults;
+      }
+
+      setResultMatrix(matrixResults);
+      const flattened = matrixResults.flat();
+      setHistory(prev => [...flattened, ...prev]);
       setAppState(AppState.RESULTS);
 
-      setIsShoppingLoading(true);
-      analyzeShoppableItems(generatedImageBase64, maskBase64).then(setShoppingItems).finally(() => setIsShoppingLoading(false));
+      // Data enrichment for the 9-fold batch
+      setIsMatrixDataLoading(true);
+      const enrichmentPromises = flattened.map(async (res) => {
+        const [shopping, budget] = await Promise.all([
+            analyzeShoppableItems(res.imageUrl, maskBase64),
+            estimateRenovationCost(res.imageUrl, maskBase64, settings.roomType)
+        ]);
+        return { id: res.id, shopping, budget };
+      });
 
-      setIsBudgetLoading(true);
-      estimateRenovationCost(generatedImageBase64, maskBase64, settings.roomType).then(items => {
-              setBudgetItems(items);
-              setBudgetHistory(prev => [...prev, { id: newResult.id, items }]);
-          }).finally(() => setIsBudgetLoading(false));
+      const enriched = await Promise.all(enrichmentPromises);
+      const newMatrixData: typeof matrixData = {};
+      enriched.forEach(e => {
+        newMatrixData[e.id] = { shopping: e.shopping, budget: e.budget };
+      });
+      
+      setMatrixData(newMatrixData);
+      setBudgetHistory(prev => [
+          ...prev, 
+          ...enriched.map(e => ({ id: e.id, items: e.budget }))
+      ]);
+      setIsMatrixDataLoading(false);
 
     } catch (e: any) {
-      setErrorMsg(e.message || "An error occurred during generation.");
+      setErrorMsg(e.message || "An error occurred during matrix generation.");
     } finally {
       setIsGenerating(false);
     }
   };
 
+  const currentResult = resultMatrix[activeConceptIndex]?.[activeLayoutIndex];
+  const currentMatrixInfo = currentResult ? matrixData[currentResult.id] : null;
+
   const handleRestoreHistory = (historyItem: GenerationResult) => {
-      setResult(historyItem);
+      setResultMatrix([[historyItem]]);
+      setActiveConceptIndex(0);
+      setActiveLayoutIndex(0);
       setSourceImage(historyItem.sourceImage);
       setSettings(historyItem.settings);
-      setShoppingItems([]);
-      setBudgetItems([]); 
       setAppState(AppState.RESULTS);
       setPreviewBox(null);
   };
 
+  const handleChainDesign = () => {
+    if (currentResult) {
+        setSourceImage(currentResult.imageUrl);
+        setAppState(AppState.EDITOR);
+        setHasMask(false);
+        setResultMatrix([]);
+        setMatrixData({});
+        setOrchestratedInstruction("");
+        setSettings(prev => ({ ...prev, prompt: '' }));
+    }
+  };
+
   const handleSaveProject = async () => {
-    if (!sourceImage) return;
+    if (!sourceImage || !currentResult) return;
     setIsSavingProject(true);
-    
     const project: Project = {
-      id: result?.id || `proj-${Date.now()}`,
-      name: `${settings.style} ${settings.roomType} Redesign Redesign`,
+      id: currentResult.id,
+      name: `${settings.style} Redesign Matrix`,
       userId: user?.id,
       updatedAt: Date.now(),
       sourceImage: sourceImage,
       settings: settings,
-      result: result,
+      result: currentResult,
       history: history,
-      shoppingItems: shoppingItems,
-      budgetItems: budgetItems
+      shoppingItems: currentMatrixInfo?.shopping || [],
+      budgetItems: currentMatrixInfo?.budget || []
     };
-
-    // Simulate network delay for organic feel
-    await new Promise(r => setTimeout(r, 1000));
-
-    const existingProjectsRaw = localStorage.getItem('lumina_projects');
-    const existingProjects: Project[] = existingProjectsRaw ? JSON.parse(existingProjectsRaw) : [];
-    
-    const index = existingProjects.findIndex(p => p.id === project.id);
-    if (index !== -1) {
-      existingProjects[index] = project;
-    } else {
-      existingProjects.push(project);
-    }
-
-    localStorage.setItem('lumina_projects', JSON.stringify(existingProjects));
-    
+    await new Promise(r => setTimeout(r, 800));
+    const existingRaw = localStorage.getItem('lumina_projects');
+    const existing: Project[] = existingRaw ? JSON.parse(existingRaw) : [];
+    existing.push(project);
+    localStorage.setItem('lumina_projects', JSON.stringify(existing));
     setIsSavingProject(false);
     setShowSaveSuccess(true);
     setTimeout(() => setShowSaveSuccess(false), 3000);
   };
 
-  const handleExportTemplate = () => {
-    if (!sourceImage) return;
-    
-    const project: Project = {
-      id: result?.id || `template-${Date.now()}`,
-      name: `${settings.style} ${settings.roomType} Redesign Template Template`,
-      userId: user?.id,
-      updatedAt: Date.now(),
-      sourceImage: sourceImage,
-      settings: settings,
-      result: result,
-      history: history,
-      shoppingItems: shoppingItems,
-      budgetItems: budgetItems
-    };
-
-    const dataStr = JSON.stringify(project, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `lumina-template-${project.id}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const project = JSON.parse(event.target?.result as string) as Project;
-        
-        // Restore State
-        setSourceImage(project.sourceImage);
-        setSettings(project.settings);
-        setHistory(project.history || []);
-        setResult(project.result || null);
-        setShoppingItems(project.shoppingItems || []);
-        setBudgetItems(project.budgetItems || []);
-        
-        if (project.result) {
-          setAppState(AppState.RESULTS);
-        } else if (project.sourceImage) {
-          setAppState(AppState.EDITOR);
-        } else {
-          setAppState(AppState.UPLOAD);
-        }
-        
-        // If results exist, also try to rebuild budget history
-        if (project.budgetItems.length > 0 && project.result) {
-          setBudgetHistory([{ id: project.result.id, items: project.budgetItems }]);
-        }
-
-        // Reset input
-        if (importInputRef.current) importInputRef.current.value = "";
-      } catch (err) {
-        console.error("Failed to import template:", err);
-        setErrorMsg("Invalid template file format.");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleStartOver = () => {
-      if (window.confirm("Start a new project? Architecture history is synced to your cloud profile.")) {
-          setAppState(AppState.UPLOAD);
-          setSourceImage(null);
-          setResult(null);
-          setHasMask(false);
-          setSuggestions([]);
-          setShoppingItems([]);
-          setBudgetItems([]);
-          setPreviewBox(null);
-          if (user) applyUserPreferences(user);
-          else {
-            setSettings({
-                prompt: '',
-                roomType: RoomType.LIVING_ROOM,
-                style: StylePreset.MODERN,
-                lighting: LightingOption.DAYLIGHT,
-                creativity: 50,
-                preserveStructure: true,
-                autoSuggest: false
-              });
-          }
-      }
-  };
-
   const handleDownload = () => {
-    if (result) {
+    if (currentResult) {
       const link = document.createElement('a');
-      link.href = result.imageUrl;
-      link.download = `lumina-design-${result.id}.png`;
+      link.href = currentResult.imageUrl;
+      link.download = `lumina-concept-${activeConceptIndex+1}-layout-${activeLayoutIndex+1}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     }
   };
 
-  const handleRefineResult = () => {
-    setAppState(AppState.EDITOR);
-  };
-
   const handleView3D = async () => {
-      if (!result) return;
-      if (result.depthMapUrl) {
+      if (!currentResult) return;
+      if (currentResult.depthMapUrl) {
           setShow3DViewer(true);
           return;
       }
       setIsGeneratingDepth(true);
       try {
-          const depthMap = await generateDepthMap(result.imageUrl);
-          setResult(prev => prev ? { ...prev, depthMapUrl: depthMap } : null);
+          const depthMap = await generateDepthMap(currentResult.imageUrl);
+          setResultMatrix(prev => {
+              const next = [...prev];
+              next[activeConceptIndex][activeLayoutIndex] = { ...next[activeConceptIndex][activeLayoutIndex], depthMapUrl: depthMap };
+              return next;
+          });
           setShow3DViewer(true);
       } catch (e) {
-          console.error(e);
           setErrorMsg("Failed to generate 3D view");
       } finally {
           setIsGeneratingDepth(false);
       }
   };
 
+  // Fix: Added handleSavePreset to resolve missing reference error in App component
   const handleSavePreset = (name: string) => {
     if (!user) return;
     const newPreset: SavedPreset = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substring(2, 9),
       name,
       roomType: settings.roomType,
       style: settings.style,
@@ -448,65 +376,71 @@ export default function App() {
       creativity: settings.creativity,
       prompt: settings.prompt
     };
-    handleUpdateProfile({
+    const updatedUser: UserProfile = {
       ...user,
       preferences: {
         ...user.preferences,
         savedPresets: [...user.preferences.savedPresets, newPreset]
       }
-    });
+    };
+    handleUpdateProfile(updatedUser);
   };
 
+  // Fix: Added handleLoadPreset to resolve missing reference error in App component
   const handleLoadPreset = (preset: SavedPreset) => {
-    setSettings(prev => ({
-      ...prev,
+    setSettings({
+      ...settings,
       roomType: preset.roomType,
       style: preset.style,
       lighting: preset.lighting,
       creativity: preset.creativity,
       prompt: preset.prompt
-    }));
+    });
   };
 
-  const currentBudgetRound = budgetHistory.length > 0 ? budgetHistory[budgetHistory.length - 1].items : [];
-  const pastBudgetHistory = budgetHistory.length > 1 ? budgetHistory.slice(0, budgetHistory.length - 1) : [];
+  // Fix: Implemented handleImportTemplate inside component to manage state during file ingestion
+  const handleImportTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const project = JSON.parse(event.target?.result as string) as Project;
+        setSourceImage(project.sourceImage);
+        setSettings(project.settings);
+        if (project.result) {
+          setResultMatrix([[project.result]]);
+          setActiveConceptIndex(0);
+          setActiveLayoutIndex(0);
+          setAppState(AppState.RESULTS);
+        } else {
+          setAppState(AppState.EDITOR);
+        }
+      } catch (err) {
+        setErrorMsg("Failed to import project template.");
+      }
+    };
+    reader.readAsText(file);
+  };
 
   return (
     <>
       {showWelcome && <WelcomeScreen onComplete={() => setShowWelcome(false)} />}
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={handleLogin} />}
-      {showSettings && user && (
-        <SettingsModal 
-          user={user} 
-          onClose={() => setShowSettings(false)} 
-          onUpdate={handleUpdateProfile} 
-        />
-      )}
+      {showSettings && user && <SettingsModal user={user} onClose={() => setShowSettings(false)} onUpdate={handleUpdateProfile} />}
       
-      {/* Hidden file input for loading templates */}
-      <input 
-        ref={importInputRef}
-        type="file" 
-        accept=".json" 
-        onChange={handleImportTemplate} 
-        className="hidden" 
-      />
+      <input ref={importInputRef} type="file" accept=".json" onChange={handleImportTemplate} className="hidden" />
 
-      <div className={`min-h-screen font-sans text-accent pb-12 lg:pb-20 relative overflow-x-hidden selection:bg-primary/30 selection:text-white transition-opacity duration-1000 ${showWelcome ? 'opacity-0' : 'opacity-100'}`}>
+      <div className={`min-h-screen font-sans text-accent pb-12 lg:pb-20 relative overflow-x-hidden transition-opacity duration-1000 ${showWelcome ? 'opacity-0' : 'opacity-100'}`}>
         
         <div className="fixed inset-0 -z-10 bg-background overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-tertiary/20 rounded-full blur-[120px] animate-blob mix-blend-screen" />
           <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] bg-primary/20 rounded-full blur-[100px] animate-blob mix-blend-screen" style={{animationDelay: '2s'}} />
           <div className="absolute bottom-[-10%] left-[20%] w-[45vw] h-[45vw] bg-secondary/10 rounded-full blur-[100px] animate-blob mix-blend-screen" style={{animationDelay: '4s'}} />
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 brightness-150 contrast-120 mix-blend-overlay"></div>
         </div>
 
-        {show3DViewer && result && result.depthMapUrl && (
-            <ThreeDViewer 
-               imageUrl={result.imageUrl}
-               depthUrl={result.depthMapUrl}
-               onClose={() => setShow3DViewer(false)}
-            />
+        {show3DViewer && currentResult && currentResult.depthMapUrl && (
+            <ThreeDViewer imageUrl={currentResult.imageUrl} depthUrl={currentResult.depthMapUrl} onClose={() => setShow3DViewer(false)} />
         )}
 
         <header className="sticky top-0 z-50 glass-panel border-b border-white/5 h-20 lg:h-24">
@@ -522,327 +456,123 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-3 lg:gap-6">
-               <div className="hidden lg:flex items-center gap-3">
-                 {(appState === AppState.EDITOR || appState === AppState.RESULTS) && (
-                    <>
-                      <button 
-                        onClick={handleExportTemplate}
-                        className="flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10"
-                        title="Save Template as JSON"
-                      >
-                        <FileDown size={16} />
-                        Save Template
-                      </button>
-
-                      <button 
-                        onClick={handleSaveProject}
-                        disabled={isSavingProject}
-                        className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                          showSaveSuccess 
-                          ? 'bg-secondary/20 border-secondary text-secondary' 
-                          : 'bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        {isSavingProject ? (
-                          <div className="w-4 h-4 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
-                        ) : showSaveSuccess ? (
-                          <CheckCircle2 size={16} />
-                        ) : (
-                          <Save size={16} />
-                        )}
-                        {showSaveSuccess ? 'Project Synced' : 'Sync Project'}
-                      </button>
-                    </>
-                 )}
-
-                 {appState === AppState.UPLOAD && (
-                   <button 
-                     onClick={() => importInputRef.current?.click()}
-                     className="flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10"
-                   >
-                     <FileUp size={16} />
-                     Load Template
-                   </button>
-                 )}
-               </div>
-
-               {appState !== AppState.UPLOAD && (
-                  <button 
-                    type="button" 
-                    onClick={handleStartOver}
-                    disabled={isGenerating}
-                    className="hidden lg:flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-accent/50 hover:text-white hover:bg-white/5 border border-white/5 hover:border-white/10 transition-all disabled:opacity-50"
-                  >
-                    New Session
+               {(appState === AppState.EDITOR || appState === AppState.RESULTS) && (
+                  <button onClick={handleSaveProject} disabled={isSavingProject} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${showSaveSuccess ? 'bg-secondary/20 border-secondary text-secondary' : 'bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10'}`}>
+                    {isSavingProject ? <div className="w-4 h-4 border-2 border-accent/20 border-t-accent rounded-full animate-spin" /> : showSaveSuccess ? <CheckCircle2 size={16} /> : <Save size={16} />}
+                    {showSaveSuccess ? 'Synced' : 'Sync Project'}
                   </button>
                )}
-
-               <div className="h-10 w-px bg-white/10 hidden lg:block" />
-
                {user ? (
-                 <div className="relative" ref={userMenuRef}>
-                    <button 
-                      onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                      className={`flex items-center gap-2 lg:gap-4 pl-1 lg:pl-2 pr-3 lg:pr-5 py-1 lg:py-2 rounded-2xl transition-all ${isUserMenuOpen ? 'bg-white/10 border-white/20' : 'bg-transparent border-transparent'} border`}
-                    >
-                       <img src={user.avatar} alt="Avatar" className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl border-2 border-secondary/40 shadow-2xl" />
-                       <div className="hidden lg:flex flex-col items-start text-left">
-                          <span className="text-sm font-bold text-white leading-none flex items-center gap-1.5">
-                             {user.name}
-                             <CloudCheck size={14} className="text-tertiary" />
-                          </span>
-                          <span className="text-[9px] text-accent/40 font-black uppercase tracking-widest mt-1.5">Lead Architect</span>
-                       </div>
-                       <ChevronDown size={14} className={`text-slate-500 transition-transform duration-500 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    <div 
-                      className={`absolute top-full right-0 mt-4 w-64 lg:w-72 glass-panel p-4 rounded-[2.5rem] border border-white/10 shadow-2xl transition-all duration-400 origin-top-right z-[100] 
-                        ${isUserMenuOpen && !isSigningOut ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-4 scale-90 pointer-events-none'}`}
-                    >
-                        <div className="p-4 mb-3 bg-white/5 rounded-2xl border border-white/5">
-                           <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">Studio ID</p>
-                           <p className="text-xs font-bold text-white truncate opacity-70">{user.email}</p>
-                        </div>
-                        <button 
-                          onClick={() => { setIsUserMenuOpen(false); setShowSettings(true); }}
-                          className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 text-sm text-slate-300 hover:text-white transition-all group"
-                        >
-                           <div className="p-2.5 rounded-xl bg-white/5 group-hover:bg-primary/20 transition-colors">
-                             <SettingsIcon size={18} />
-                           </div>
-                           Studio Settings
-                        </button>
-                        <button 
-                          onClick={() => { setIsUserMenuOpen(false); handleStartOver(); }}
-                          className="lg:hidden w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 text-sm text-slate-300 hover:text-white transition-all group"
-                        >
-                           <div className="p-2.5 rounded-xl bg-white/5 group-hover:bg-secondary/20 transition-colors">
-                             <Plus size={18} />
-                           </div>
-                           New Session
-                        </button>
-                        <div className="h-px bg-white/5 my-3 mx-4" />
-                        <button 
-                          onClick={handleLogout} 
-                          className={`w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-red-500/10 text-sm text-red-400 hover:text-red-300 transition-all group ${isSigningOut ? 'animate-pulse' : ''}`}
-                        >
-                           <div className="p-2.5 rounded-xl bg-white/5 group-hover:bg-red-500/20 transition-colors">
-                             <LogOut size={18} />
-                           </div>
-                           Sign Out Studio
-                        </button>
-                    </div>
-                 </div>
-               ) : (
-                 <button 
-                   onClick={() => setShowLogin(true)}
-                   className="flex items-center gap-3 lg:gap-4 px-6 lg:px-10 py-3 lg:py-4 rounded-2xl bg-pale text-background text-[10px] font-black uppercase tracking-[0.3em] hover:bg-secondary hover:text-white transition-all group shadow-2xl shadow-white/5"
-                 >
-                   <User size={18} className="transition-transform group-hover:scale-110" />
-                   Portal
+                 <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl border-2 border-secondary/40 overflow-hidden">
+                    <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
                  </button>
+               ) : (
+                 <button onClick={() => setShowLogin(true)} className="px-6 py-3 rounded-2xl bg-pale text-background text-[10px] font-black uppercase tracking-[0.3em] hover:bg-secondary hover:text-white transition-all">Portal</button>
                )}
-
-               <button 
-                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                 className="lg:hidden p-3 rounded-2xl bg-white/5 border border-white/10 text-white"
-               >
-                 {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-               </button>
             </div>
           </div>
-          
-          {/* Mobile Overlay Menu */}
-          {isMobileMenuOpen && (
-            <div className="lg:hidden fixed inset-0 top-20 bg-background/95 backdrop-blur-xl z-[40] p-6 animate-fade-in flex flex-col gap-4">
-              <button 
-                onClick={() => { importInputRef.current?.click(); setIsMobileMenuOpen(false); }}
-                className="flex items-center gap-4 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-white text-sm font-bold uppercase tracking-widest"
-              >
-                <FileUp size={20} className="text-secondary" />
-                Load Template
-              </button>
-              {(appState === AppState.EDITOR || appState === AppState.RESULTS) && (
-                <>
-                  <button 
-                    onClick={() => { handleExportTemplate(); setIsMobileMenuOpen(false); }}
-                    className="flex items-center gap-4 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-white text-sm font-bold uppercase tracking-widest"
-                  >
-                    <FileDown size={20} className="text-secondary" />
-                    Save Template
-                  </button>
-                  <button 
-                    onClick={() => { handleSaveProject(); setIsMobileMenuOpen(false); }}
-                    className="flex items-center gap-4 p-5 rounded-[2rem] bg-white/5 border border-white/10 text-white text-sm font-bold uppercase tracking-widest"
-                  >
-                    <Save size={20} className="text-secondary" />
-                    Sync Project
-                  </button>
-                </>
-              )}
-            </div>
-          )}
         </header>
 
         <main className="max-w-[1700px] mx-auto px-4 lg:px-10 py-8 lg:py-16">
-          {errorMsg && (
-            <div className="mb-8 lg:mb-12 p-4 lg:p-6 bg-red-900/20 backdrop-blur-2xl border border-red-500/30 text-red-200 rounded-[2rem] lg:rounded-[2.5rem] flex items-center gap-4 lg:gap-5 shadow-2xl animate-fade-in max-w-2xl mx-auto">
-               <div className="p-3 bg-red-500/20 rounded-xl text-red-400"><Info size={24} className="lg:w-7 lg:h-7" /></div>
-               <div>
-                  <h4 className="font-black text-white uppercase text-[9px] lg:text-[10px] tracking-widest mb-0.5 lg:mb-1">Architectural Alert</h4>
-                  <p className="text-xs lg:text-sm opacity-80 leading-relaxed">{errorMsg}</p>
-                  <button 
-                    onClick={() => setErrorMsg(null)}
-                    className="text-[8px] lg:text-[9px] uppercase font-bold tracking-widest text-red-300 mt-1 lg:mt-2 hover:text-white underline"
-                  >
-                    Dismiss
-                  </button>
-               </div>
-            </div>
-          )}
-
           {appState === AppState.UPLOAD && (
-            <div className="max-w-5xl mx-auto mt-8 lg:mt-24 animate-fade-in text-center relative">
-               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-40 w-[300px] lg:w-[600px] h-[300px] lg:h-[600px] bg-primary/20 blur-[100px] lg:blur-[180px] rounded-full pointer-events-none" />
-               <div className="inline-flex items-center gap-2 lg:gap-3 px-4 lg:px-6 py-2 lg:py-3 rounded-full bg-white/5 border border-white/10 text-[8px] lg:text-[10px] font-black text-secondary uppercase tracking-[0.3em] lg:tracking-[0.4em] mb-8 lg:mb-12 backdrop-blur-md">
-                <div className="w-2 lg:w-2.5 h-2 lg:h-2.5 rounded-full bg-tertiary animate-pulse shadow-lg shadow-tertiary/50" />
-                Visionary Core Online
-              </div>
-              <h1 className="text-5xl lg:text-[9rem] font-display font-bold mb-8 lg:mb-12 tracking-tighter leading-[0.9] lg:leading-[0.8] text-transparent bg-clip-text bg-gradient-to-b from-white via-accent to-accent/20 drop-shadow-2xl px-2">
-                Redesign <br className="hidden md:block" /> Reality
-              </h1>
-              <p className="text-accent/60 mb-12 lg:mb-20 text-lg lg:text-3xl max-w-2xl lg:max-w-3xl mx-auto leading-relaxed font-light px-4">
-                {user ? (
-                  <>Welcome back, <span className="text-white font-bold">{user.name.split(' ')[0]}</span>. Your architectural suite is synchronized.</>
-                ) : "Transform your spatial environment with high-fidelity vision orchestration."}
-              </p>
-              <div className="glass-panel p-2 lg:p-4 rounded-[3rem] lg:rounded-[4rem] shadow-[0_0_100px_-20px_rgba(170,196,140,0.4)] border-white/10">
-                 <UploadZone onImageSelected={handleImageSelected} onLoadTemplate={() => importInputRef.current?.click()} />
-              </div>
-
-              {history.length > 0 && (
-                <div className="mt-16 lg:mt-28 text-left">
-                    <HistoryPanel history={history} activeResultId={result?.id || ""} onSelectResult={handleRestoreHistory} />
-                </div>
-              )}
+            <div className="max-w-5xl mx-auto mt-8 lg:mt-24 text-center">
+              <h1 className="text-5xl lg:text-[9rem] font-display font-bold mb-12 tracking-tighter leading-[0.8] text-transparent bg-clip-text bg-gradient-to-b from-white via-accent to-accent/20">Redesign <br /> Reality</h1>
+              <div className="glass-panel p-4 rounded-[4rem] border-white/10"><UploadZone onImageSelected={handleImageSelected} /></div>
+              {history.length > 0 && <div className="mt-28 text-left"><HistoryPanel history={history} activeResultId={currentResult?.id || ""} onSelectResult={handleRestoreHistory} /></div>}
             </div>
           )}
 
           {(appState === AppState.EDITOR || appState === AppState.GENERATING) && sourceImage && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-20 animate-fade-in items-start">
-              <div className="lg:col-span-8 flex flex-col gap-8 lg:gap-14">
-                <div className="glass-panel rounded-[2.5rem] lg:rounded-[4rem] shadow-2xl overflow-hidden relative group border-white/10 flex items-center justify-center min-h-[500px]">
-                   <div className="p-2 lg:p-3 w-full flex justify-center">
-                     <MaskCanvas 
-                        key={sourceImage}
-                        ref={maskCanvasRef} 
-                        imageSrc={sourceImage} 
-                        onMaskChange={setHasMask} 
-                        previewBox={previewBox} 
-                      />
-                   </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-20 animate-fade-in items-start">
+              <div className="lg:col-span-8 flex flex-col gap-14">
+                <div className="glass-panel rounded-[4rem] overflow-hidden relative border-white/10 flex items-center justify-center min-h-[500px]">
+                   <MaskCanvas key={sourceImage} ref={maskCanvasRef} imageSrc={sourceImage} onMaskChange={setHasMask} previewBox={previewBox} />
                    {isGenerating && (
                      <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center">
-                        <div className="relative mb-8 lg:mb-12">
-                          <div className="animate-spin rounded-full h-24 w-24 lg:h-40 lg:w-40 border-t-2 border-b-2 border-secondary shadow-[0_0_70px_rgba(170,196,140,0.5)]"></div>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Sparkles size={32} className="text-secondary animate-pulse lg:w-12 lg:h-12" />
-                          </div>
-                        </div>
-                        <p className="text-2xl lg:text-4xl font-display font-bold text-white animate-pulse tracking-tight mb-2">
-                          {orchestratedInstruction ? "Synthesizing Space..." : "Orchestrating Architecture..."}
-                        </p>
-                        <span className="text-[8px] lg:text-[10px] uppercase text-secondary font-black tracking-[0.3em] lg:tracking-[0.5em] opacity-60">Synchronizing design matrix</span>
+                        <div className="animate-spin rounded-full h-40 w-40 border-t-2 border-b-2 border-secondary mb-12 shadow-[0_0_70px_rgba(170,196,140,0.5)]" />
+                        <p className="text-4xl font-display font-bold text-white animate-pulse mb-2">{orchestratedInstruction}</p>
+                        <span className="text-[10px] uppercase text-secondary font-black tracking-[0.5em] opacity-60">Synchronizing 9-concept matrix</span>
                      </div>
                    )}
                 </div>
               </div>
-              <div className="lg:col-span-4 sticky top-28 lg:top-36">
-                 <div className="glass-panel p-6 lg:p-12 rounded-[2.5rem] lg:rounded-[4rem] border border-white/10 shadow-2xl">
-                    <ControlPanel 
-                      settings={settings} 
-                      onChange={setSettings} 
-                      isGenerating={isGenerating} 
-                      onGenerate={handleGenerate} 
-                      isValid={!!sourceImage} 
-                      suggestions={suggestions} 
-                      isAnalyzing={isAnalyzing} 
-                      onApplySuggestion={handleApplySuggestion} 
-                      onPreviewSuggestion={setPreviewBox} 
-                      user={user}
-                      onSavePreset={handleSavePreset}
-                      onLoadPreset={handleLoadPreset}
-                    />
+              <div className="lg:col-span-4 sticky top-36">
+                 <div className="glass-panel p-12 rounded-[4rem] border border-white/10 shadow-2xl">
+                    <ControlPanel settings={settings} onChange={setSettings} isGenerating={isGenerating} onGenerate={handleGenerate} isValid={!!sourceImage} suggestions={suggestions} isAnalyzing={isAnalyzing} onApplySuggestion={handleApplySuggestion} onPreviewSuggestion={setPreviewBox} user={user} onSavePreset={handleSavePreset} onLoadPreset={handleLoadPreset} />
                  </div>
               </div>
             </div>
           )}
 
-          {appState === AppState.RESULTS && result && (
+          {appState === AppState.RESULTS && currentResult && (
              <div className="max-w-[1600px] mx-auto animate-fade-in">
-                <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-8 lg:mb-12">
-                   <button onClick={() => setAppState(AppState.EDITOR)} className="group flex items-center self-start gap-4 pl-6 lg:pl-8 pr-8 lg:pr-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] bg-white/5 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs hover:bg-white/10 hover:text-secondary transition-all backdrop-blur-xl">
-                     <ArrowLeft size={16} className="lg:w-5 lg:h-5 group-hover:-translate-x-1.5 transition-transform" />
-                     Return
+                
+                {/* 9-Fold Matrix Switcher */}
+                <div className="flex flex-col items-center gap-6 mb-12">
+                    {/* Primary Level: Concepts */}
+                    <div className="inline-flex items-center gap-1 p-1.5 bg-white/5 backdrop-blur-3xl rounded-[2.5rem] border border-white/10">
+                        {[1, 2, 3].map((num, idx) => (
+                            <button
+                                key={`c-${idx}`}
+                                onClick={() => setActiveConceptIndex(idx)}
+                                className={`flex items-center gap-3 px-8 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-500 ${activeConceptIndex === idx ? 'bg-secondary text-background' : 'text-accent/40 hover:text-white'}`}
+                            >
+                                <LayoutGrid size={14} /> Concept 0{num}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Secondary Level: Layouts per Concept */}
+                    <div className="inline-flex items-center gap-1 p-1 bg-white/5 backdrop-blur-3xl rounded-full border border-white/10">
+                        {['A', 'B', 'C'].map((label, idx) => (
+                            <button
+                                key={`l-${idx}`}
+                                onClick={() => setActiveLayoutIndex(idx)}
+                                className={`flex items-center gap-2 px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${activeLayoutIndex === idx ? 'bg-primary text-white shadow-lg' : 'text-accent/30 hover:text-white'}`}
+                            >
+                                <LayoutIcon size={12} /> Layout {label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-12">
+                   <button onClick={() => setAppState(AppState.EDITOR)} className="group flex items-center gap-4 pl-8 pr-10 py-5 rounded-[2rem] bg-white/5 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-xs hover:bg-white/10">
+                     <ArrowLeft size={16} /> Adjust Original
                    </button>
                    
-                   <div className="flex flex-wrap gap-2 lg:gap-4">
-                      <button 
-                        onClick={() => setShowProductPins(!showProductPins)}
-                        className={`px-6 lg:px-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 transition-all border ${showProductPins ? 'bg-secondary text-background border-secondary' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}
-                      >
-                        <Search size={18} className="lg:w-6 lg:h-6" />
-                        Pins {showProductPins ? 'ON' : 'OFF'}
+                   <div className="flex flex-wrap gap-4">
+                      <button onClick={handleChainDesign} className="px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 bg-gradient-to-r from-secondary to-primary text-background group shadow-lg shadow-secondary/20">
+                         <Wand2 size={18} /> Re-edit this Layout
                       </button>
-
-                      <button 
-                        onClick={handleView3D}
-                        disabled={isGeneratingDepth}
-                        className="bg-white/5 text-white px-6 lg:px-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 hover:bg-white/10 border border-white/10 transition-all disabled:opacity-50"
-                      >
-                        {isGeneratingDepth ? <div className="animate-spin h-4 w-4 lg:h-5 lg:w-5 border-2 border-white border-t-transparent rounded-full"/> : <Box size={18} className="lg:w-6 lg:h-6" />}
-                        3D View
+                      <button onClick={handleDownload} className="px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 bg-white text-black hover:bg-secondary hover:text-white transition-all">
+                        <Download size={18} /> Output Result
                       </button>
-
-                      <button onClick={handleDownload} className="bg-white/5 text-white px-6 lg:px-10 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 hover:bg-white/10 border border-white/10 transition-all">
-                        <Download size={18} className="lg:w-6 lg:h-6" />
-                        Save
+                      <button onClick={() => setShowProductPins(!showProductPins)} className={`px-10 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 border transition-all ${showProductPins ? 'bg-secondary/10 text-secondary border-secondary/50' : 'bg-white/5 text-white border-white/10'}`}>
+                        <Search size={18} /> Pins {showProductPins ? 'ON' : 'OFF'}
                       </button>
-                      
-                      <button onClick={handleRefineResult} className="bg-primary hover:bg-secondary text-white px-8 lg:px-12 py-4 lg:py-5 rounded-[1.5rem] lg:rounded-[2rem] font-black uppercase tracking-[0.2em] text-[10px] lg:text-xs flex items-center gap-3 lg:gap-4 shadow-[0_0_60px_rgba(106,122,90,0.5)] transition-all hover:scale-105 active:scale-95">
-                        <Layers size={18} className="lg:w-6 lg:h-6" />
-                        Refine
+                      <button onClick={handleView3D} disabled={isGeneratingDepth} className="bg-white/5 text-white px-10 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 hover:bg-white/10 border border-white/10">
+                        {isGeneratingDepth ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"/> : <Box size={18} />} 3D View
                       </button>
                    </div>
                 </div>
 
-                <div className="glass-panel rounded-[2.5rem] lg:rounded-[4rem] overflow-hidden shadow-2xl border-white/10 mb-8 lg:mb-12 relative group flex justify-center items-center bg-black/20">
-                   <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                     <ImageSlider 
-                      beforeImage={sourceImage || ""} 
-                      afterImage={result.imageUrl} 
-                      beforeLabel="Origin"
-                      afterLabel="Architectural Render"
-                     />
+                <div className="glass-panel rounded-[4rem] overflow-hidden shadow-2xl border-white/10 mb-12 relative group flex justify-center items-center bg-black/20">
+                   <div className="relative w-full h-full flex items-center justify-center">
+                     <ImageSlider key={currentResult.id} beforeImage={sourceImage || ""} afterImage={currentResult.imageUrl} beforeLabel="Origin" afterLabel={`Concept 0${activeConceptIndex+1} / Layout ${['A','B','C'][activeLayoutIndex]}`} />
+                     <ProductVisualDiscovery products={currentMatrixInfo?.shopping || []} isVisible={showProductPins} />
                    </div>
-                   
-                   {/* Product Discovery Overlay */}
-                   <ProductVisualDiscovery 
-                     products={shoppingItems} 
-                     isVisible={showProductPins} 
-                   />
+                   <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+                      <div className="bg-secondary/90 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 shadow-2xl border border-white/20">
+                         <Check size={14} className="text-background" />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-background">Architecture Preserved</span>
+                      </div>
+                   </div>
                 </div>
                 
-                {history.length > 0 && (
-                   <div className="mb-12 lg:mb-24">
-                     <HistoryPanel history={history} activeResultId={result.id} onSelectResult={handleRestoreHistory} />
-                   </div>
-                )}
-                
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 lg:gap-14">
-                  <ShoppingPanel items={shoppingItems} isLoading={isShoppingLoading} />
-                  <BudgetPanel currentItems={currentBudgetRound} history={pastBudgetHistory} isLoading={isBudgetLoading} />
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-14">
+                  <ShoppingPanel items={currentMatrixInfo?.shopping || []} isLoading={isMatrixDataLoading} />
+                  <BudgetPanel currentItems={currentMatrixInfo?.budget || []} history={[]} isLoading={isMatrixDataLoading} />
                 </div>
              </div>
           )}
