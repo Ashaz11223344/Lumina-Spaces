@@ -14,7 +14,7 @@ import SettingsModal from './components/SettingsModal';
 import ImageSlider from './components/ImageSlider';
 import ProductVisualDiscovery from './components/ProductVisualDiscovery';
 import { orchestrateDesign, generateRoomImage, detectRoomImprovements, analyzeShoppableItems, estimateRenovationCost, generateDepthMap } from './services/geminiService';
-import { ArrowLeft, Download, Info, Sparkles, Layers, PenTool, Box, User, LogOut, CloudCheck, Settings as SettingsIcon, ChevronDown, Save, CheckCircle2, FileUp, FileDown, Search, Menu, X, Plus, Wand2, Check, LayoutGrid, Layout as LayoutIcon, Maximize2 } from 'lucide-react';
+import { ArrowLeft, Download, Sparkles, Box, CheckCircle2, Save, Search, Wand2, Check, Layout as LayoutIcon, Maximize2, Ruler } from 'lucide-react';
 
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(true);
@@ -31,13 +31,11 @@ export default function App() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSavingProject, setIsSavingProject] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 3x3 Generation Matrix State: [ConceptIndex][LayoutIndex]
-  const [resultMatrix, setResultMatrix] = useState<GenerationResult[][]>([]);
-  const [activeConceptIndex, setActiveConceptIndex] = useState(0);
+  // 3-Layout Batch State
+  const [resultBatch, setResultBatch] = useState<GenerationResult[]>([]);
   const [activeLayoutIndex, setActiveLayoutIndex] = useState(0);
-  const [matrixData, setMatrixData] = useState<{ [key: string]: { shopping: ProductItem[], budget: BudgetItem[] } }>({});
+  const [batchData, setBatchData] = useState<{ [key: string]: { shopping: ProductItem[], budget: BudgetItem[] } }>({});
 
   // Discovery UI State
   const [showProductPins, setShowProductPins] = useState(true);
@@ -49,7 +47,8 @@ export default function App() {
     lighting: LightingOption.DAYLIGHT,
     creativity: 50,
     preserveStructure: true,
-    autoSuggest: false
+    autoSuggest: false,
+    dimensions: undefined
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
@@ -64,11 +63,13 @@ export default function App() {
   const [suggestions, setSuggestions] = useState<DesignSuggestion[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const [isMatrixDataLoading, setIsMatrixDataLoading] = useState(false);
+  const [isBatchDataLoading, setIsBatchDataLoading] = useState(false);
 
   const maskCanvasRef = useRef<MaskCanvasHandle>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const [history, setHistory] = useState<GenerationResult[]>([]);
+  const [budgetHistory, setBudgetHistory] = useState<{ id: string, items: BudgetItem[] }[]>([]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('lumina_current_user');
@@ -94,9 +95,6 @@ export default function App() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const [history, setHistory] = useState<GenerationResult[]>([]);
-  const [budgetHistory, setBudgetHistory] = useState<{ id: string, items: BudgetItem[] }[]>([]);
 
   useEffect(() => {
     if (settings.autoSuggest && sourceImage && suggestions.length === 0 && !isAnalyzing) {
@@ -135,7 +133,7 @@ export default function App() {
       setBudgetHistory([]);
       setAppState(AppState.UPLOAD);
       setSourceImage(null);
-      setResultMatrix([]);
+      setResultBatch([]);
       setIsSigningOut(false);
     }, 400); 
   };
@@ -178,8 +176,8 @@ export default function App() {
         const img = e.target.result as string;
         setSourceImage(img);
         setAppState(AppState.EDITOR);
-        setResultMatrix([]);
-        setMatrixData({});
+        setResultBatch([]);
+        setBatchData({});
         setHasMask(false);
         setPreviewBox(null);
         if (settings.autoSuggest) analyzeImage(img);
@@ -192,10 +190,12 @@ export default function App() {
     if (!sourceImage) return;
     setIsGenerating(true);
     setErrorMsg(null);
-    setOrchestratedInstruction("Orchestrating 9-Fold Rearrangement Matrix...");
-    setResultMatrix([]);
-    setMatrixData({});
-    setActiveConceptIndex(0);
+    
+    const hasDims = settings.dimensions && (settings.dimensions.length || settings.dimensions.width || settings.dimensions.height);
+    setOrchestratedInstruction(hasDims ? `Architecting 1:1 Metric Layout...` : "Designing Structural Matrix...");
+    
+    setResultBatch([]);
+    setBatchData({});
     setActiveLayoutIndex(0);
 
     try {
@@ -205,74 +205,46 @@ export default function App() {
         if (maskData) maskBase64 = maskData;
       }
 
-      const concepts = [
-        { id: 1, name: "Organic Earth", focus: "natural textures and wood elements" },
-        { id: 2, name: "Luxury High-Light", focus: "sophisticated integrated lighting and metallics" },
-        { id: 3, name: "Harmonious Flow", focus: "minimalist spatial balance and soft acoustics" }
-      ];
+      const baseConcept = await orchestrateDesign(settings, sourceImage, maskBase64);
 
       const layouts = [
-        { id: 'A', name: "Optimized Classic", spatial: "optimizing the original orientation for better circulation" },
-        { id: 'B', name: "Rotated Focal", spatial: "rotating the focal point by 90 degrees to create a new perspective" },
-        { id: 'C', name: "Social Cluster", spatial: "rearranging furniture into a conversational cluster for hosting" }
+        { name: "Curated Origin", instructions: "Keep existing furniture orientation but upgrade materials to real-world premium finishes (brass, marble, oak). 100% structural lock." },
+        { name: "Bespoke Zoning", instructions: "Divide space into functional zones using real-world modular systems. Ensure 1:1 architectural preservation of walls and windows." },
+        { name: "Stylistic Overlay", instructions: "Overlay aggressive stylistic textures while maintaining the exact immutable architectural layout of the source." }
       ];
 
-      const matrixResults: GenerationResult[][] = [[], [], []];
+      const generatedImages = await Promise.all(layouts.map(l => 
+        generateRoomImage(sourceImage, `${baseConcept}. Priority: ${l.instructions}`, maskBase64)
+      ));
 
-      // We generate 3 concepts, each with 3 layouts = 9 outputs
-      for (let cIdx = 0; cIdx < concepts.length; cIdx++) {
-        setOrchestratedInstruction(`Synthesizing Concept 0${cIdx+1}...`);
-        
-        const conceptResults = await Promise.all(layouts.map(async (l, lIdx) => {
-          const promptForLayout = await orchestrateDesign(
-            { ...settings, prompt: `${settings.prompt}. CONCEPT: ${concepts[cIdx].focus}. LAYOUT VARIATION: ${l.spatial}.` }, 
-            sourceImage, 
-            maskBase64
-          );
-          
-          const img = await generateRoomImage(sourceImage, promptForLayout, maskBase64);
-          
-          const res: GenerationResult = {
-            id: `matrix-${Date.now()}-${cIdx}-${lIdx}`,
-            imageUrl: img,
-            promptUsed: promptForLayout,
-            timestamp: Date.now(),
-            sourceImage: sourceImage,
-            settings: { ...settings }
-          };
-          return res;
-        }));
+      const newResults: GenerationResult[] = generatedImages.map((img, idx) => ({
+        id: `layout-${Date.now()}-${idx}`,
+        imageUrl: img,
+        promptUsed: baseConcept + " | " + layouts[idx].name,
+        timestamp: Date.now(),
+        sourceImage: sourceImage,
+        settings: { ...settings }
+      }));
 
-        matrixResults[cIdx] = conceptResults;
-      }
-
-      setResultMatrix(matrixResults);
-      const flattened = matrixResults.flat();
-      setHistory(prev => [...flattened, ...prev]);
+      setResultBatch(newResults);
+      setHistory(prev => [...newResults, ...prev]);
       setAppState(AppState.RESULTS);
 
-      // Data enrichment for the 9-fold batch
-      setIsMatrixDataLoading(true);
-      const enrichmentPromises = flattened.map(async (res) => {
+      setIsBatchDataLoading(true);
+      const enrichment = await Promise.all(newResults.map(async (res) => {
         const [shopping, budget] = await Promise.all([
-            analyzeShoppableItems(res.imageUrl, maskBase64),
-            estimateRenovationCost(res.imageUrl, maskBase64, settings.roomType)
+          analyzeShoppableItems(res.imageUrl, maskBase64, settings, baseConcept),
+          estimateRenovationCost(res.imageUrl, maskBase64, settings.roomType)
         ]);
         return { id: res.id, shopping, budget };
-      });
+      }));
 
-      const enriched = await Promise.all(enrichmentPromises);
-      const newMatrixData: typeof matrixData = {};
-      enriched.forEach(e => {
-        newMatrixData[e.id] = { shopping: e.shopping, budget: e.budget };
+      const newBatchData: typeof batchData = {};
+      enrichment.forEach(e => {
+        newBatchData[e.id] = { shopping: e.shopping, budget: e.budget };
       });
-      
-      setMatrixData(newMatrixData);
-      setBudgetHistory(prev => [
-          ...prev, 
-          ...enriched.map(e => ({ id: e.id, items: e.budget }))
-      ]);
-      setIsMatrixDataLoading(false);
+      setBatchData(newBatchData);
+      setIsBatchDataLoading(false);
 
     } catch (e: any) {
       setErrorMsg(e.message || "An error occurred during matrix generation.");
@@ -281,17 +253,15 @@ export default function App() {
     }
   };
 
-  const currentResult = resultMatrix[activeConceptIndex]?.[activeLayoutIndex];
-  const currentMatrixInfo = currentResult ? matrixData[currentResult.id] : null;
+  const currentResult = resultBatch[activeLayoutIndex];
+  const currentBatchInfo = currentResult ? batchData[currentResult.id] : null;
 
   const handleRestoreHistory = (historyItem: GenerationResult) => {
-      setResultMatrix([[historyItem]]);
-      setActiveConceptIndex(0);
+      setResultBatch([historyItem]);
       setActiveLayoutIndex(0);
       setSourceImage(historyItem.sourceImage);
       setSettings(historyItem.settings);
       setAppState(AppState.RESULTS);
-      setPreviewBox(null);
   };
 
   const handleChainDesign = () => {
@@ -299,9 +269,8 @@ export default function App() {
         setSourceImage(currentResult.imageUrl);
         setAppState(AppState.EDITOR);
         setHasMask(false);
-        setResultMatrix([]);
-        setMatrixData({});
-        setOrchestratedInstruction("");
+        setResultBatch([]);
+        setBatchData({});
         setSettings(prev => ({ ...prev, prompt: '' }));
     }
   };
@@ -311,17 +280,16 @@ export default function App() {
     setIsSavingProject(true);
     const project: Project = {
       id: currentResult.id,
-      name: `${settings.style} Redesign Matrix`,
-      userId: user?.id,
+      name: `${settings.style} Layout Study`,
       updatedAt: Date.now(),
       sourceImage: sourceImage,
       settings: settings,
       result: currentResult,
       history: history,
-      shoppingItems: currentMatrixInfo?.shopping || [],
-      budgetItems: currentMatrixInfo?.budget || []
+      shoppingItems: currentBatchInfo?.shopping || [],
+      budgetItems: currentBatchInfo?.budget || []
     };
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 600));
     const existingRaw = localStorage.getItem('lumina_projects');
     const existing: Project[] = existingRaw ? JSON.parse(existingRaw) : [];
     existing.push(project);
@@ -335,10 +303,8 @@ export default function App() {
     if (currentResult) {
       const link = document.createElement('a');
       link.href = currentResult.imageUrl;
-      link.download = `lumina-concept-${activeConceptIndex+1}-layout-${activeLayoutIndex+1}.png`;
-      document.body.appendChild(link);
+      link.download = `lumina-redesign-${activeLayoutIndex+1}.png`;
       link.click();
-      document.body.removeChild(link);
     }
   };
 
@@ -351,9 +317,9 @@ export default function App() {
       setIsGeneratingDepth(true);
       try {
           const depthMap = await generateDepthMap(currentResult.imageUrl);
-          setResultMatrix(prev => {
+          setResultBatch(prev => {
               const next = [...prev];
-              next[activeConceptIndex][activeLayoutIndex] = { ...next[activeConceptIndex][activeLayoutIndex], depthMapUrl: depthMap };
+              next[activeLayoutIndex] = { ...next[activeLayoutIndex], depthMapUrl: depthMap };
               return next;
           });
           setShow3DViewer(true);
@@ -364,7 +330,6 @@ export default function App() {
       }
   };
 
-  // Fix: Added handleSavePreset to resolve missing reference error in App component
   const handleSavePreset = (name: string) => {
     if (!user) return;
     const newPreset: SavedPreset = {
@@ -374,19 +339,18 @@ export default function App() {
       style: settings.style,
       lighting: settings.lighting,
       creativity: settings.creativity,
-      prompt: settings.prompt
+      prompt: settings.prompt,
+      dimensions: settings.dimensions as any
     };
-    const updatedUser: UserProfile = {
+    handleUpdateProfile({
       ...user,
       preferences: {
         ...user.preferences,
         savedPresets: [...user.preferences.savedPresets, newPreset]
       }
-    };
-    handleUpdateProfile(updatedUser);
+    });
   };
 
-  // Fix: Added handleLoadPreset to resolve missing reference error in App component
   const handleLoadPreset = (preset: SavedPreset) => {
     setSettings({
       ...settings,
@@ -394,33 +358,9 @@ export default function App() {
       style: preset.style,
       lighting: preset.lighting,
       creativity: preset.creativity,
-      prompt: preset.prompt
+      prompt: preset.prompt,
+      dimensions: preset.dimensions as any
     });
-  };
-
-  // Fix: Implemented handleImportTemplate inside component to manage state during file ingestion
-  const handleImportTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const project = JSON.parse(event.target?.result as string) as Project;
-        setSourceImage(project.sourceImage);
-        setSettings(project.settings);
-        if (project.result) {
-          setResultMatrix([[project.result]]);
-          setActiveConceptIndex(0);
-          setActiveLayoutIndex(0);
-          setAppState(AppState.RESULTS);
-        } else {
-          setAppState(AppState.EDITOR);
-        }
-      } catch (err) {
-        setErrorMsg("Failed to import project template.");
-      }
-    };
-    reader.readAsText(file);
   };
 
   return (
@@ -429,14 +369,11 @@ export default function App() {
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} onLogin={handleLogin} />}
       {showSettings && user && <SettingsModal user={user} onClose={() => setShowSettings(false)} onUpdate={handleUpdateProfile} />}
       
-      <input ref={importInputRef} type="file" accept=".json" onChange={handleImportTemplate} className="hidden" />
-
       <div className={`min-h-screen font-sans text-accent pb-12 lg:pb-20 relative overflow-x-hidden transition-opacity duration-1000 ${showWelcome ? 'opacity-0' : 'opacity-100'}`}>
         
         <div className="fixed inset-0 -z-10 bg-background overflow-hidden pointer-events-none">
           <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-tertiary/20 rounded-full blur-[120px] animate-blob mix-blend-screen" />
           <div className="absolute top-[20%] right-[-10%] w-[40vw] h-[40vw] bg-primary/20 rounded-full blur-[100px] animate-blob mix-blend-screen" style={{animationDelay: '2s'}} />
-          <div className="absolute bottom-[-10%] left-[20%] w-[45vw] h-[45vw] bg-secondary/10 rounded-full blur-[100px] animate-blob mix-blend-screen" style={{animationDelay: '4s'}} />
         </div>
 
         {show3DViewer && currentResult && currentResult.depthMapUrl && (
@@ -445,9 +382,9 @@ export default function App() {
 
         <header className="sticky top-0 z-50 glass-panel border-b border-white/5 h-20 lg:h-24">
           <div className="max-w-[1700px] mx-auto px-4 lg:px-10 h-full flex items-center justify-between">
-            <div className="flex items-center gap-3 lg:gap-5 cursor-pointer group" onClick={() => window.location.reload()}>
-              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-2xl shadow-primary/30 group-hover:rotate-12 transition-transform duration-500">
-                <Sparkles size={20} className="text-white lg:w-6 lg:h-6" />
+            <div className="flex items-center gap-5 cursor-pointer group" onClick={() => window.location.reload()}>
+              <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-2xl">
+                <Sparkles size={20} className="text-white" />
               </div>
               <div className="hidden sm:block">
                 <span className="text-xl lg:text-3xl font-display font-bold tracking-tighter text-white block leading-none">Lumina</span>
@@ -455,10 +392,10 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3 lg:gap-6">
+            <div className="flex items-center gap-6">
                {(appState === AppState.EDITOR || appState === AppState.RESULTS) && (
                   <button onClick={handleSaveProject} disabled={isSavingProject} className={`flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${showSaveSuccess ? 'bg-secondary/20 border-secondary text-secondary' : 'bg-white/5 border-white/5 text-accent/50 hover:text-white hover:bg-white/10'}`}>
-                    {isSavingProject ? <div className="w-4 h-4 border-2 border-accent/20 border-t-accent rounded-full animate-spin" /> : showSaveSuccess ? <CheckCircle2 size={16} /> : <Save size={16} />}
+                    {isGenerating ? <div className="w-4 h-4 border-2 border-accent/20 border-t-accent rounded-full animate-spin" /> : showSaveSuccess ? <CheckCircle2 size={16} /> : <Save size={16} />}
                     {showSaveSuccess ? 'Synced' : 'Sync Project'}
                   </button>
                )}
@@ -491,7 +428,7 @@ export default function App() {
                      <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center">
                         <div className="animate-spin rounded-full h-40 w-40 border-t-2 border-b-2 border-secondary mb-12 shadow-[0_0_70px_rgba(170,196,140,0.5)]" />
                         <p className="text-4xl font-display font-bold text-white animate-pulse mb-2">{orchestratedInstruction}</p>
-                        <span className="text-[10px] uppercase text-secondary font-black tracking-[0.5em] opacity-60">Synchronizing 9-concept matrix</span>
+                        <span className="text-[10px] uppercase text-secondary font-black tracking-[0.5em] opacity-60">Synchronizing Spatial Matrix</span>
                      </div>
                    )}
                 </div>
@@ -507,30 +444,16 @@ export default function App() {
           {appState === AppState.RESULTS && currentResult && (
              <div className="max-w-[1600px] mx-auto animate-fade-in">
                 
-                {/* 9-Fold Matrix Switcher */}
+                {/* Unified Layout Switcher */}
                 <div className="flex flex-col items-center gap-6 mb-12">
-                    {/* Primary Level: Concepts */}
-                    <div className="inline-flex items-center gap-1 p-1.5 bg-white/5 backdrop-blur-3xl rounded-[2.5rem] border border-white/10">
-                        {[1, 2, 3].map((num, idx) => (
+                    <div className="inline-flex items-center gap-1 p-1.5 bg-white/5 backdrop-blur-3xl rounded-[2.5rem] border border-white/10 shadow-2xl">
+                        {resultBatch.map((res, idx) => (
                             <button
-                                key={`c-${idx}`}
-                                onClick={() => setActiveConceptIndex(idx)}
-                                className={`flex items-center gap-3 px-8 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-500 ${activeConceptIndex === idx ? 'bg-secondary text-background' : 'text-accent/40 hover:text-white'}`}
-                            >
-                                <LayoutGrid size={14} /> Concept 0{num}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Secondary Level: Layouts per Concept */}
-                    <div className="inline-flex items-center gap-1 p-1 bg-white/5 backdrop-blur-3xl rounded-full border border-white/10">
-                        {['A', 'B', 'C'].map((label, idx) => (
-                            <button
-                                key={`l-${idx}`}
+                                key={res.id}
                                 onClick={() => setActiveLayoutIndex(idx)}
-                                className={`flex items-center gap-2 px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${activeLayoutIndex === idx ? 'bg-primary text-white shadow-lg' : 'text-accent/30 hover:text-white'}`}
+                                className={`flex items-center gap-3 px-10 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-[0.3em] transition-all duration-500 ${activeLayoutIndex === idx ? 'bg-secondary text-background shadow-xl' : 'text-accent/40 hover:text-white'}`}
                             >
-                                <LayoutIcon size={12} /> Layout {label}
+                                <LayoutIcon size={14} /> Layout 0{idx + 1}
                             </button>
                         ))}
                     </div>
@@ -538,41 +461,57 @@ export default function App() {
 
                 <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6 mb-12">
                    <button onClick={() => setAppState(AppState.EDITOR)} className="group flex items-center gap-4 pl-8 pr-10 py-5 rounded-[2rem] bg-white/5 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-xs hover:bg-white/10">
-                     <ArrowLeft size={16} /> Adjust Original
+                     <ArrowLeft size={16} /> Adjust Source
                    </button>
                    
                    <div className="flex flex-wrap gap-4">
-                      <button onClick={handleChainDesign} className="px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 bg-gradient-to-r from-secondary to-primary text-background group shadow-lg shadow-secondary/20">
-                         <Wand2 size={18} /> Re-edit this Layout
+                      {settings.dimensions && (
+                        <div className="px-8 py-5 rounded-[2rem] bg-secondary/10 border border-secondary/30 flex items-center gap-3">
+                           <Ruler size={16} className="text-secondary" />
+                           <span className="text-[10px] font-black uppercase tracking-widest text-secondary">
+                              Architectural Lock: {settings.dimensions.length || '?'}m x {settings.dimensions.width || '?'}m
+                           </span>
+                        </div>
+                      )}
+                      <button onClick={handleChainDesign} className="px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 bg-gradient-to-r from-secondary to-primary text-background shadow-lg hover:scale-105 transition-all">
+                         <Wand2 size={18} /> Re-edit Layout
                       </button>
-                      <button onClick={handleDownload} className="px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 bg-white text-black hover:bg-secondary hover:text-white transition-all">
-                        <Download size={18} /> Output Result
+                      <button onClick={handleDownload} className="px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 bg-white text-black hover:bg-secondary hover:text-white transition-all shadow-xl">
+                        <Download size={18} /> Save Asset
                       </button>
-                      <button onClick={() => setShowProductPins(!showProductPins)} className={`px-10 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 border transition-all ${showProductPins ? 'bg-secondary/10 text-secondary border-secondary/50' : 'bg-white/5 text-white border-white/10'}`}>
-                        <Search size={18} /> Pins {showProductPins ? 'ON' : 'OFF'}
-                      </button>
-                      <button onClick={handleView3D} disabled={isGeneratingDepth} className="bg-white/5 text-white px-10 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 hover:bg-white/10 border border-white/10">
-                        {isGeneratingDepth ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"/> : <Box size={18} />} 3D View
-                      </button>
+                      <div className="flex bg-white/5 border border-white/10 rounded-[2rem] p-1 shadow-lg backdrop-blur-md">
+                        <button onClick={() => setShowProductPins(!showProductPins)} className={`px-8 py-4 rounded-[1.8rem] font-black uppercase tracking-[0.2em] text-[10px] flex items-center gap-3 transition-all ${showProductPins ? 'bg-secondary text-background shadow-xl' : 'text-accent/50 hover:text-white'}`}>
+                          <Search size={14} /> Hotspot Pins
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={handleView3D} disabled={isGeneratingDepth} className="bg-white/5 text-white px-10 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center gap-4 hover:bg-white/10 border border-white/10">
+                          {isGeneratingDepth ? <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"/> : <Box size={18} />} 3D View
+                        </button>
+                      </div>
                    </div>
                 </div>
 
                 <div className="glass-panel rounded-[4rem] overflow-hidden shadow-2xl border-white/10 mb-12 relative group flex justify-center items-center bg-black/20">
                    <div className="relative w-full h-full flex items-center justify-center">
-                     <ImageSlider key={currentResult.id} beforeImage={sourceImage || ""} afterImage={currentResult.imageUrl} beforeLabel="Origin" afterLabel={`Concept 0${activeConceptIndex+1} / Layout ${['A','B','C'][activeLayoutIndex]}`} />
-                     <ProductVisualDiscovery products={currentMatrixInfo?.shopping || []} isVisible={showProductPins} />
+                     <ImageSlider key={currentResult.id} beforeImage={sourceImage || ""} afterImage={currentResult.imageUrl}>
+                        <ProductVisualDiscovery 
+                            products={currentBatchInfo?.shopping || []} 
+                            isVisible={showProductPins} 
+                        />
+                     </ImageSlider>
                    </div>
                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
                       <div className="bg-secondary/90 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 shadow-2xl border border-white/20">
                          <Check size={14} className="text-background" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-background">Architecture Preserved</span>
+                         <span className="text-[10px] font-black uppercase tracking-widest text-background">Architectural Ground Truth Preserved</span>
                       </div>
                    </div>
                 </div>
                 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-14">
-                  <ShoppingPanel items={currentMatrixInfo?.shopping || []} isLoading={isMatrixDataLoading} />
-                  <BudgetPanel currentItems={currentMatrixInfo?.budget || []} history={[]} isLoading={isMatrixDataLoading} />
+                  <ShoppingPanel items={currentBatchInfo?.shopping || []} isLoading={isBatchDataLoading} />
+                  <BudgetPanel currentItems={currentBatchInfo?.budget || []} history={[]} isLoading={isBatchDataLoading} />
                 </div>
              </div>
           )}

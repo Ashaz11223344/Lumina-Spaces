@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { StylePreset, LightingOption, GenerationSettings, DesignSuggestion, RoomType, UserProfile, SavedPreset } from '../types';
-import { Sparkles, Zap, Sun, Palette, Wand2, BrainCircuit, Plus, MousePointerClick, LayoutTemplate, Bookmark, Save, ChevronRight } from 'lucide-react';
+import { Sparkles, Zap, Sun, Palette, Wand2, BrainCircuit, Plus, MousePointerClick, LayoutTemplate, Bookmark, Save, ChevronRight, Maximize, Ruler } from 'lucide-react';
 
 interface ControlPanelProps {
   settings: GenerationSettings;
@@ -46,6 +46,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       setShowPresetInput(false);
     }
   };
+
+  const updateDimension = (key: 'length' | 'width' | 'height', val: string) => {
+    const num = val === '' ? undefined : Number(val);
+    onChange({
+      ...settings,
+      dimensions: {
+        ...(settings.dimensions || {}),
+        [key]: num
+      }
+    });
+  };
+
+  const hasDimensions = settings.dimensions && (settings.dimensions.length || settings.dimensions.width || settings.dimensions.height);
 
   return (
     <div className="space-y-8 lg:space-y-10">
@@ -100,6 +113,55 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         </div>
       )}
+
+      {/* Metric Room Dimensions (Improved for architectural accuracy) */}
+      <div className="space-y-3 lg:space-y-4">
+        <label className="flex items-center gap-2 text-xs lg:text-sm font-bold text-accent uppercase tracking-widest">
+          <Ruler size={14} className="text-secondary lg:w-4 lg:h-4" />
+          Structural Dimensions
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="relative">
+            <input 
+              type="number" 
+              placeholder="L"
+              step="0.1"
+              value={settings.dimensions?.length || ''}
+              onChange={(e) => updateDimension('length', e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-3 text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-secondary transition-all"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-bold text-accent/30 uppercase">m</span>
+          </div>
+          <div className="relative">
+            <input 
+              type="number" 
+              placeholder="W"
+              step="0.1"
+              value={settings.dimensions?.width || ''}
+              onChange={(e) => updateDimension('width', e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-3 text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-secondary transition-all"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-bold text-accent/30 uppercase">m</span>
+          </div>
+          <div className="relative">
+            <input 
+              type="number" 
+              placeholder="H"
+              step="0.1"
+              value={settings.dimensions?.height || ''}
+              onChange={(e) => updateDimension('height', e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-3 text-white text-xs font-mono focus:outline-none focus:ring-1 focus:ring-secondary transition-all"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-bold text-accent/30 uppercase">m</span>
+          </div>
+        </div>
+        {hasDimensions && (
+          <div className="px-3 py-1.5 rounded-lg bg-secondary/10 border border-secondary/20 flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
+            <span className="text-[9px] font-black text-secondary uppercase tracking-widest">1:1 Metric Scale Enforcement Active</span>
+          </div>
+        )}
+      </div>
 
       {/* Auto Suggestor */}
       <div className="p-4 lg:p-5 rounded-2xl bg-white/5 border border-white/5 space-y-3 lg:space-y-4 relative overflow-hidden">
@@ -261,7 +323,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {/* Creativity */}
       <div className="space-y-4 lg:space-y-5 pt-2 lg:pt-4 p-4 lg:p-6 rounded-2xl lg:rounded-3xl bg-white/5 border border-white/5">
-         <div className="flex justify-between items-center">
+         <div className="justify-between items-center hidden lg:flex">
             <label className="text-[10px] lg:text-xs font-bold text-accent uppercase tracking-widest">Creativity</label>
             <span className="text-[10px] lg:text-xs font-mono font-bold text-secondary bg-secondary/10 px-2 lg:px-3 py-0.5 lg:py-1 rounded-full border border-secondary/20">
                 {settings.creativity}%
@@ -296,7 +358,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <span className="text-sm lg:text-base">Synchronizing...</span>
+              <span className="text-sm lg:text-base">Orchestrating Architecture...</span>
             </div>
           ) : (
             <>

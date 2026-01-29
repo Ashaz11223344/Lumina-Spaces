@@ -1,9 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { GenerationSettings, DesignSuggestion, ProductItem, BudgetItem, RoomType } from '../types';
-
-// Global instances are avoided to ensure fresh initialization with the current API key 
-// from process.env.API_KEY before each request, following SDK guidelines.
+import { GenerationSettings, DesignSuggestion, ProductItem, BudgetItem, RoomType, MeasurementPoint } from '../types';
 
 const resizeImageForVision = (base64Str: string, maxWidth = 1024): Promise<string> => {
   return new Promise((resolve) => {
@@ -32,20 +29,19 @@ const resizeImageForVision = (base64Str: string, maxWidth = 1024): Promise<strin
   });
 };
 
-/**
- * Detects potential room improvements using Gemini 3 Flash with structured JSON output.
- */
 export const detectRoomImprovements = async (base64Image: string, roomType?: string): Promise<DesignSuggestion[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview"; 
 
   const prompt = `
-    Analyze this interior design photo of a ${roomType || "Room"}.
-    Identify 3-4 specific high-impact changes that could improve the aesthetics.
-    Focus on items that can be replaced or added.
-    For each item, identify its position in the image.
-    Provide the bounding box as "box_2d": [ymin, xmin, ymax, xmax] using scale 0-1000.
-    Be creative and architecturally sound.
+    Role: Professional Real-Estate Interior Stager.
+    Task: Identify 3-4 high-impact, BUILDABLE improvements for this ${roomType || "Room"}.
+    
+    STRICT CONSTRAINTS:
+    - Suggest only REAL-WORLD items (market-ready furniture, standard flooring, real light fixtures).
+    - No abstract or conceptual shapes.
+    - Provide a tight, accurate bounding box [ymin, xmin, ymax, xmax] (scale 0-1000) where the item should be placed.
+    - Focus on ergonomic flow and premium retail silhouettes.
   `;
 
   try {
@@ -71,7 +67,7 @@ export const detectRoomImprovements = async (base64Image: string, roomType?: str
               box_2d: { 
                 type: Type.ARRAY,
                 items: { type: Type.NUMBER },
-                description: 'Bounding box [ymin, xmin, ymax, xmax] normalized 0-1000'
+                description: 'Precise bounding box [ymin, xmin, ymax, xmax] normalized 0-1000'
               }
             },
             required: ["id", "text", "category", "box_2d"]
@@ -87,26 +83,37 @@ export const detectRoomImprovements = async (base64Image: string, roomType?: str
   }
 };
 
-/**
- * Orchestrates detailed design instructions from user preferences.
- */
 export const orchestrateDesign = async (settings: GenerationSettings, base64Image: string, maskBase64?: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = "gemini-3-pro-preview";
+  const model = "gemini-3-flash-preview"; 
+  
+  const dims = settings.dimensions;
+  const dimensionConstraint = dims && (dims.length || dims.width || dims.height)
+    ? `DIMENSIONAL CONSTRAINTS: Length: ${dims.length || 'N/A'}m, Width: ${dims.width || 'N/A'}m, Height: ${dims.height || 'N/A'}m. All design elements must fit exactly within these 1:1 metric proportions.`
+    : "Dimensions are not specified; infer scale strictly from the input image without altering proportions.";
+
   const prompt = `
-    Task: Act as a master architect. Refine the user's design prompt into a highly detailed visual instruction for an image generation model.
+    Role: Master Orchestration Engine and Architect. 
+    Task: Convert user vision into a technical redesign brief while preserving architectural ground truth.
     
-    CRITICAL CONSTRAINT: 
-    The architectural structure must be preserved exactly. The ceilings, window positions, window sizes, and wall dimensions must not be changed, moved, or resized. They should be exactly as they appear in the original image.
+    ARCHITECTURAL INTEGRITY RULES:
+    1. Use the provided image as the EXACT structural reference.
+    2. Do NOT change, remove, shift, resize, replace, or hallucinate any architectural elements.
+    3. Strictly preserve: Original room layout and proportions, exact wall positions, ALL windows (number, position, size, frame), doors, openings, corners, ceiling and floor boundaries.
+    4. Windows MUST remain windows. Do NOT replace windows with walls.
+    5. ONLY redesign surface textures, materials, colors, and interior styling.
+    6. ${dimensionConstraint}
+
+    Briefing Requirements:
+    - Only use REAL-WORLD MATERIALS: White Oak, Polished Concrete, Linen, Brushed Steel, etc.
+    - Specify furniture silhouettes from REAL e-commerce categories.
     
     Context:
     - Room: ${settings.roomType}
     - User Request: "${settings.prompt}"
     - Style: ${settings.style}
-    - Lighting: ${settings.lighting}
-    - Masking: ${maskBase64 ? "The user has selected a specific area to modify." : "The whole room will be redesigned while respecting fixed architecture."}
     
-    Output a single paragraph of detailed descriptive text that captures the textures, materials, and lighting atmosphere. Ensure the description implies the preservation of existing structural elements like windows and ceilings. Do not include introductory text.
+    Output a single, dense paragraph of technical spatial instructions.
   `;
 
   try {
@@ -128,23 +135,40 @@ export const orchestrateDesign = async (settings: GenerationSettings, base64Imag
     return response.text;
   } catch (error) {
     console.error("Orchestration Error:", error);
-    return `A ${settings.style} style ${settings.roomType} with ${settings.lighting} lighting. ${settings.prompt}`;
+    return `A ${settings.style} ${settings.roomType} with real-world furniture and premium finishes.`;
   }
 };
 
-/**
- * Generates redesigned room images using inpainting techniques.
- */
 export const generateRoomImage = async (base64Image: string, prompt: string, maskBase64?: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = "gemini-2.5-flash-image";
+  const model = "gemini-2.5-flash-image"; 
   
+  const architecturalConstraints = `
+    STRICT PRESERVATION RULES:
+    - Use the provided image as the EXACT structural reference.
+    - Do NOT change, remove, shift, resize, replace, or hallucinate any architectural elements.
+    - Strictly preserve: Original room layout/proportions, exact wall positions, ALL windows (number, position, size, frame), doors, openings, corners, ceiling and floor boundaries.
+    - Windows must remain windows. Do NOT replace windows with walls or solid surfaces.
+    - Do NOT cover, block, or modify windows in any way.
+    - Maintain 1:1 scale accuracy.
+    - Treat the input image as immutable architectural ground truth.
+    - ONLY apply visual enhancement to: Surface textures, materials, colors, lighting, and interior styling.
+    
+    NEGATIVE PROMPT:
+    remove window, missing window, wall instead of window, altered layout, structural change, geometry change, incorrect dimensions, scale mismatch, resized room, extra wall, blocked window, hallucinated structure.
+  `;
+
   const contents: any = {
     parts: [
       { inlineData: { mimeType: 'image/jpeg', data: (await resizeImageForVision(base64Image)).split(',')[1] } },
       { text: `
-        Strict Requirement: The resulting image must keep the room's core dimensions, ceilings, and window positions exactly as they are in the original. Do not move, resize, or break the architecture. 
-        Focus on: ${prompt}
+        TASK: High-Fidelity Room Re-staging.
+        ${architecturalConstraints}
+        
+        DESIGN INSTRUCTIONS:
+        1. Replace items and textures according to: ${prompt}.
+        2. Only use commercially available, real-world interior design elements.
+        3. Technical Quality: Sharp 8k photography, realistic textures, cinematic soft lighting.
       ` }
     ]
   };
@@ -153,7 +177,7 @@ export const generateRoomImage = async (base64Image: string, prompt: string, mas
     contents.parts.push({
       inlineData: { mimeType: 'image/png', data: maskBase64.split(',')[1] }
     });
-    contents.parts.push({ text: "Only modify the area specified by the mask. Seamlessly blend the new design with the existing fixed structural boundaries." });
+    contents.parts.push({ text: "CRITICAL: ONLY redesign the area highlighted in the mask. The rest of the image MUST remain 100% identical to the source. Seamless integration is mandatory." });
   }
 
   try {
@@ -167,24 +191,37 @@ export const generateRoomImage = async (base64Image: string, prompt: string, mas
         return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
-    throw new Error("No image generated by model");
+    throw new Error("No image generated");
   } catch (error) {
     console.error("Image Generation Error:", error);
     throw error;
   }
 };
 
-/**
- * Extracts shoppable furniture data with exact image coordinates.
- */
-export const analyzeShoppableItems = async (base64Image: string, maskBase64?: string): Promise<ProductItem[]> => {
+export const analyzeShoppableItems = async (
+  base64Image: string, 
+  maskBase64?: string, 
+  settings?: GenerationSettings,
+  orchestratedPrompt?: string
+): Promise<ProductItem[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview";
+  
   const prompt = `
-    Identify 4 specific furniture or decor items in this design.
-    ${maskBase64 ? "FOCUS ON ITEMS IN THE REDESIGNED AREA." : ""}
-    Provide specific search queries and price ranges in INR.
-    For each item, provide its exact position in the image using normalized coordinates [ymin, xmin, ymax, xmax] (scale 0-1000) as "box_2d".
+    Task: Object Detection and Product Grounding.
+    Analyze this interior and detect exactly 4 real-world furniture/decor items.
+    
+    CONTEXT FOR MATCHING:
+    - User Intent: "${settings?.prompt || 'N/A'}"
+    - Design Brief: "${orchestratedPrompt || 'N/A'}"
+    
+    STRICT GROUNDING REQUIREMENT:
+    - For each item, you MUST provide a tight bounding box [ymin, xmin, ymax, xmax] (scale 0-1000) that wraps the object perfectly.
+    - Pins will be placed at the center of this box. Accuracy is 100% required.
+    
+    DATA FIELDS:
+    - query: A specific search string for a real e-commerce engine.
+    - dimensions: Real-world estimates in cm.
   `;
 
   try {
@@ -209,13 +246,23 @@ export const analyzeShoppableItems = async (base64Image: string, maskBase64?: st
               query: { type: Type.STRING },
               category: { type: Type.STRING },
               priceRange: { type: Type.STRING },
+              dimensions: {
+                type: Type.OBJECT,
+                properties: {
+                  length: { type: Type.STRING },
+                  width: { type: Type.STRING },
+                  height: { type: Type.STRING }
+                },
+                required: ["length", "width", "height"]
+              },
               box_2d: { 
                 type: Type.ARRAY,
                 items: { type: Type.NUMBER },
-                description: 'Bounding box [ymin, xmin, ymax, xmax] normalized 0-1000'
-              }
+                description: '[ymin, xmin, ymax, xmax] 0-1000'
+              },
+              isSpaceOptimized: { type: Type.BOOLEAN }
             },
-            required: ["id", "name", "query", "category", "box_2d"]
+            required: ["id", "name", "query", "category", "box_2d", "dimensions", "isSpaceOptimized"]
           }
         }
       }
@@ -227,15 +274,11 @@ export const analyzeShoppableItems = async (base64Image: string, maskBase64?: st
   }
 };
 
-/**
- * Estimates materials and labor costs for the redesign project.
- */
 export const estimateRenovationCost = async (base64Image: string, maskBase64?: string, roomType?: string): Promise<BudgetItem[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview";
   const prompt = `
-    Act as a local Indian contractor. Estimate the cost of elements in this redesign of a ${roomType || "Room"}.
-    Provide a realistic breakdown of material and labor costs in INR.
+    Contractor Estimator Mode. Provide real-world market costs in INR for materials and furniture shown in this redesign.
   `;
 
   try {
@@ -268,22 +311,14 @@ export const estimateRenovationCost = async (base64Image: string, maskBase64?: s
     });
     return JSON.parse(response.text) as BudgetItem[];
   } catch (error) {
-    console.error("Cost Estimation Error:", error);
     return [];
   }
 };
 
-/**
- * Generates a depth map for volumetric 3D visualization.
- */
 export const generateDepthMap = async (base64Image: string): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-2.5-flash-image";
-  const prompt = `
-    Generate a grayscale depth map of this interior design image.
-    Brighter pixels are closer to the camera.
-    Return ONLY the image data.
-  `;
+  const prompt = "Render a high-precision grayscale depth map of this interior for 3D reconstruction.";
 
   try {
     const optimizedImage = await resizeImageForVision(base64Image);
@@ -302,9 +337,30 @@ export const generateDepthMap = async (base64Image: string): Promise<string> => 
         return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
-    throw new Error("Depth map generation failed");
+    throw new Error("Depth Map Render Failed");
   } catch (error) {
-    console.error("Depth Map Error:", error);
     throw error;
+  }
+};
+
+export const estimateRealWorldDistance = async (base64Image: string, start: MeasurementPoint, end: MeasurementPoint): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const model = "gemini-3-flash-preview";
+  const prompt = `Using parallax and known objects in this image, estimate the distance between P1[${start.x}, ${start.y}] and P2[${end.x}, ${end.y}]. Respond ONLY with the value and unit.`;
+
+  try {
+    const optimizedImage = await resizeImageForVision(base64Image);
+    const response = await ai.models.generateContent({
+      model,
+      contents: {
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType: 'image/jpeg', data: optimizedImage.split(',')[1] } }
+        ]
+      }
+    });
+    return response.text?.trim() || "---";
+  } catch (error) {
+    return "Error";
   }
 };

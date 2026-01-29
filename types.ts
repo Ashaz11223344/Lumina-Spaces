@@ -1,5 +1,4 @@
 
-
 export enum AppState {
   UPLOAD = 'UPLOAD',
   EDITOR = 'EDITOR',
@@ -37,7 +36,6 @@ export enum LightingOption {
   NEUTRAL = 'Neutral'
 }
 
-// Added TimePeriod enum to resolve the import error in TimeOfDaySelector.tsx
 export enum TimePeriod {
   MORNING = 'Morning',
   AFTERNOON = 'Afternoon',
@@ -67,6 +65,11 @@ export interface SavedPreset {
   lighting: LightingOption;
   creativity: number;
   prompt: string;
+  dimensions?: {
+    length: number;
+    width: number;
+    height: number;
+  };
 }
 
 export interface UserPreferences {
@@ -93,9 +96,14 @@ export interface GenerationSettings {
   roomType: RoomType;
   style: StylePreset;
   lighting: LightingOption;
-  creativity: number; // 0-100
+  creativity: number; 
   preserveStructure: boolean;
   autoSuggest: boolean;
+  dimensions?: {
+    length?: number;
+    width?: number;
+    height?: number;
+  };
 }
 
 export interface GenerationResult {
@@ -112,7 +120,7 @@ export interface DesignSuggestion {
   id: string;
   text: string;
   category: 'decor' | 'lighting' | 'furniture' | 'color';
-  box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-1000
+  box_2d?: [number, number, number, number]; 
 }
 
 export interface ProductItem {
@@ -121,7 +129,13 @@ export interface ProductItem {
   query: string;
   category: string;
   priceRange?: string;
-  box_2d?: [number, number, number, number]; // [ymin, xmin, ymax, xmax] normalized 0-1000
+  box_2d?: [number, number, number, number];
+  dimensions?: {
+    length: string;
+    width: string;
+    height: string;
+  };
+  isSpaceOptimized?: boolean;
 }
 
 export interface BudgetItem {
@@ -143,4 +157,16 @@ export interface Project {
   history: GenerationResult[];
   shoppingItems: ProductItem[];
   budgetItems: BudgetItem[];
+}
+
+export interface MeasurementPoint {
+  x: number; // 0-1000
+  y: number; // 0-1000
+}
+
+export interface ManualMeasurement {
+  id: string;
+  start: MeasurementPoint;
+  end: MeasurementPoint;
+  distanceLabel?: string;
 }

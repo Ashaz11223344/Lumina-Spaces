@@ -7,13 +7,15 @@ interface ImageSliderProps {
   afterImage: string;
   beforeLabel?: string;
   afterLabel?: string;
+  children?: React.ReactNode;
 }
 
 const ImageSlider: React.FC<ImageSliderProps> = ({ 
   beforeImage, 
   afterImage, 
   beforeLabel = "Origin", 
-  afterLabel = "Redesign" 
+  afterLabel = "Redesign",
+  children
 }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
@@ -103,6 +105,9 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
           style={{ width: containerRef.current?.clientWidth || '100%' }}
         />
       </div>
+
+      {/* Discovery Layer / Children */}
+      {children}
 
       {/* Labels */}
       <div className={`absolute top-6 lg:top-12 left-6 lg:left-12 z-20 transition-opacity duration-300 ${sliderPosition < 15 ? 'opacity-0' : 'opacity-100'}`}>
