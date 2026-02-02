@@ -114,11 +114,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       )}
 
-      {/* Metric Room Dimensions (Improved for architectural accuracy) */}
+      {/* Metric Room Dimensions */}
       <div className="space-y-3 lg:space-y-4">
         <label className="flex items-center gap-2 text-xs lg:text-sm font-bold text-accent uppercase tracking-widest">
           <Ruler size={14} className="text-secondary lg:w-4 lg:h-4" />
-          Structural Dimensions
+          Structural Dimensions (meters)
         </label>
         <div className="grid grid-cols-3 gap-2">
           <div className="relative">

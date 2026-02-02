@@ -89,20 +89,21 @@ export const orchestrateDesign = async (settings: GenerationSettings, base64Imag
   
   const dims = settings.dimensions;
   const dimensionConstraint = dims && (dims.length || dims.width || dims.height)
-    ? `DIMENSIONAL CONSTRAINTS: Length: ${dims.length || 'N/A'}m, Width: ${dims.width || 'N/A'}m, Height: ${dims.height || 'N/A'}m. All design elements must fit exactly within these 1:1 metric proportions.`
-    : "Dimensions are not specified; infer scale strictly from the input image without altering proportions.";
+    ? `DIMENSIONAL CONSTRAINTS (METRIC): Length: ${dims.length || 'N/A'}m, Width: ${dims.width || 'N/A'}m, Height: ${dims.height || 'N/A'}m. Use length, width, and height in meters only. All design elements must fit exactly within these 1:1 scale measurements.`
+    : "Dimensions are not provided; keep dimensions optional and infer scale strictly from the input image without altering proportions.";
 
   const prompt = `
     Role: Master Orchestration Engine and Architect. 
-    Task: Convert user vision into a technical redesign brief while preserving architectural ground truth.
+    Task: Convert user vision into a technical redesign brief while treating the input image as immutable architectural ground truth.
     
-    ARCHITECTURAL INTEGRITY RULES:
+    ARCHITECTURAL GROUND TRUTH RULES:
     1. Use the provided image as the EXACT structural reference.
     2. Do NOT change, remove, shift, resize, replace, or hallucinate any architectural elements.
-    3. Strictly preserve: Original room layout and proportions, exact wall positions, ALL windows (number, position, size, frame), doors, openings, corners, ceiling and floor boundaries.
-    4. Windows MUST remain windows. Do NOT replace windows with walls.
-    5. ONLY redesign surface textures, materials, colors, and interior styling.
+    3. Strictly preserve: Original room layout and proportions, exact wall positions and dimensions, ALL windows (number, position, size, shape, and frame), doors, openings, corners, and edges, ceiling and floor boundaries.
+    4. Windows MUST remain windows. Do NOT replace windows with walls or solid surfaces. Do NOT cover, block, or modify windows in any way.
+    5. The geometry and structure must remain 1:1 identical to the input image.
     6. ${dimensionConstraint}
+    7. ONLY apply visual enhancement or transformation to: Surface textures, materials, colors, lighting, and interior styling.
 
     Briefing Requirements:
     - Only use REAL-WORLD MATERIALS: White Oak, Polished Concrete, Linen, Brushed Steel, etc.
@@ -144,15 +145,14 @@ export const generateRoomImage = async (base64Image: string, prompt: string, mas
   const model = "gemini-2.5-flash-image"; 
   
   const architecturalConstraints = `
-    STRICT PRESERVATION RULES:
+    STRICT ARCHITECTURAL PRESERVATION RULES:
     - Use the provided image as the EXACT structural reference.
     - Do NOT change, remove, shift, resize, replace, or hallucinate any architectural elements.
-    - Strictly preserve: Original room layout/proportions, exact wall positions, ALL windows (number, position, size, frame), doors, openings, corners, ceiling and floor boundaries.
-    - Windows must remain windows. Do NOT replace windows with walls or solid surfaces.
-    - Do NOT cover, block, or modify windows in any way.
-    - Maintain 1:1 scale accuracy.
+    - Strictly preserve: Original room layout and proportions, exact wall positions and dimensions, ALL windows (number, position, size, shape, and frame), doors, openings, corners, and edges, ceiling and floor boundaries.
+    - Windows must remain windows. Do NOT replace windows with walls or solid surfaces. Do NOT cover, block, or modify windows in any way.
+    - Maintain 1:1 scale accuracy. Any deviation in layout, window placement, or dimensional accuracy is incorrect.
     - Treat the input image as immutable architectural ground truth.
-    - ONLY apply visual enhancement to: Surface textures, materials, colors, lighting, and interior styling.
+    - ONLY apply visual enhancement or transformation to: Surface textures, materials, colors, lighting, and interior styling.
     
     NEGATIVE PROMPT:
     remove window, missing window, wall instead of window, altered layout, structural change, geometry change, incorrect dimensions, scale mismatch, resized room, extra wall, blocked window, hallucinated structure.
@@ -346,7 +346,7 @@ export const generateDepthMap = async (base64Image: string): Promise<string> => 
 export const estimateRealWorldDistance = async (base64Image: string, start: MeasurementPoint, end: MeasurementPoint): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const model = "gemini-3-flash-preview";
-  const prompt = `Using parallax and known objects in this image, estimate the distance between P1[${start.x}, ${start.y}] and P2[${end.x}, ${end.y}]. Respond ONLY with the value and unit.`;
+  const prompt = `Using parallax and known objects in this image, estimate the distance between P1[${start.x}, ${start.y}] and P2[${end.x}, ${end.y}]. Respond ONLY with the value and unit (meters).`;
 
   try {
     const optimizedImage = await resizeImageForVision(base64Image);

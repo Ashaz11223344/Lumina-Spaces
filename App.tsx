@@ -14,7 +14,7 @@ import SettingsModal from './components/SettingsModal';
 import ImageSlider from './components/ImageSlider';
 import ProductVisualDiscovery from './components/ProductVisualDiscovery';
 import { orchestrateDesign, generateRoomImage, detectRoomImprovements, analyzeShoppableItems, estimateRenovationCost, generateDepthMap } from './services/geminiService';
-import { ArrowLeft, Download, Sparkles, Box, CheckCircle2, Save, Search, Wand2, Check, Layout as LayoutIcon, Maximize2, Ruler } from 'lucide-react';
+import { ArrowLeft, Download, Sparkles, Box, CheckCircle2, Save, Search, Wand2, Check, Layout as LayoutIcon, Maximize2, Ruler, Cpu } from 'lucide-react';
 
 export default function App() {
   const [showWelcome, setShowWelcome] = useState(true);
@@ -52,6 +52,7 @@ export default function App() {
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
   const [orchestratedInstruction, setOrchestratedInstruction] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -189,6 +190,7 @@ export default function App() {
   const handleGenerate = async () => {
     if (!sourceImage) return;
     setIsGenerating(true);
+    setGenerationProgress(0);
     setErrorMsg(null);
     
     const hasDims = settings.dimensions && (settings.dimensions.length || settings.dimensions.width || settings.dimensions.height);
@@ -199,23 +201,33 @@ export default function App() {
     setActiveLayoutIndex(0);
 
     try {
+      setGenerationProgress(10);
       let maskBase64 = undefined;
       if (hasMask && maskCanvasRef.current) {
         const maskData = maskCanvasRef.current.getMaskData();
         if (maskData) maskBase64 = maskData;
       }
 
+      setOrchestratedInstruction("Analyzing Spatial Constraints...");
+      setGenerationProgress(20);
       const baseConcept = await orchestrateDesign(settings, sourceImage, maskBase64);
 
+      setOrchestratedInstruction("Generating Design Batches...");
+      setGenerationProgress(35);
       const layouts = [
         { name: "Curated Origin", instructions: "Keep existing furniture orientation but upgrade materials to real-world premium finishes (brass, marble, oak). 100% structural lock." },
         { name: "Bespoke Zoning", instructions: "Divide space into functional zones using real-world modular systems. Ensure 1:1 architectural preservation of walls and windows." },
         { name: "Stylistic Overlay", instructions: "Overlay aggressive stylistic textures while maintaining the exact immutable architectural layout of the source." }
       ];
 
-      const generatedImages = await Promise.all(layouts.map(l => 
-        generateRoomImage(sourceImage, `${baseConcept}. Priority: ${l.instructions}`, maskBase64)
-      ));
+      // Progressively generate images to feel responsive
+      const generatedImages: string[] = [];
+      for (let i = 0; i < layouts.length; i++) {
+        setOrchestratedInstruction(`Rendering Layout 0${i + 1}...`);
+        const img = await generateRoomImage(sourceImage, `${baseConcept}. Priority: ${layouts[i].instructions}`, maskBase64);
+        generatedImages.push(img);
+        setGenerationProgress(35 + ((i + 1) * 15)); // 35 -> 50 -> 65 -> 80
+      }
 
       const newResults: GenerationResult[] = generatedImages.map((img, idx) => ({
         id: `layout-${Date.now()}-${idx}`,
@@ -230,6 +242,8 @@ export default function App() {
       setHistory(prev => [...newResults, ...prev]);
       setAppState(AppState.RESULTS);
 
+      setOrchestratedInstruction("Grounding Product Assets...");
+      setGenerationProgress(90);
       setIsBatchDataLoading(true);
       const enrichment = await Promise.all(newResults.map(async (res) => {
         const [shopping, budget] = await Promise.all([
@@ -245,11 +259,15 @@ export default function App() {
       });
       setBatchData(newBatchData);
       setIsBatchDataLoading(false);
+      setGenerationProgress(100);
 
     } catch (e: any) {
       setErrorMsg(e.message || "An error occurred during matrix generation.");
     } finally {
-      setIsGenerating(false);
+      // Small delay to let the user see 100%
+      setTimeout(() => {
+        setIsGenerating(false);
+      }, 500);
     }
   };
 
@@ -425,10 +443,50 @@ export default function App() {
                 <div className="glass-panel rounded-[4rem] overflow-hidden relative border-white/10 flex items-center justify-center min-h-[500px]">
                    <MaskCanvas key={sourceImage} ref={maskCanvasRef} imageSrc={sourceImage} onMaskChange={setHasMask} previewBox={previewBox} />
                    {isGenerating && (
-                     <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center p-6 text-center">
-                        <div className="animate-spin rounded-full h-40 w-40 border-t-2 border-b-2 border-secondary mb-12 shadow-[0_0_70px_rgba(170,196,140,0.5)]" />
-                        <p className="text-4xl font-display font-bold text-white animate-pulse mb-2">{orchestratedInstruction}</p>
-                        <span className="text-[10px] uppercase text-secondary font-black tracking-[0.5em] opacity-60">Synchronizing Spatial Matrix</span>
+                     <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center p-8 lg:p-12 text-center animate-fade-in">
+                        <div className="relative mb-16">
+                           <div className="animate-spin rounded-full h-48 w-48 border-t-2 border-b-2 border-secondary/30 shadow-[0_0_80px_rgba(170,196,140,0.2)]" />
+                           <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <span className="text-2xl font-mono font-bold text-white">{generationProgress}%</span>
+                              <span className="text-[8px] font-black uppercase tracking-[0.3em] text-secondary/60">Matrix Sync</span>
+                           </div>
+                        </div>
+
+                        <div className="max-w-md w-full space-y-8">
+                           <div className="space-y-3">
+                              <p className="text-3xl lg:text-4xl font-display font-bold text-white animate-pulse tracking-tight">{orchestratedInstruction}</p>
+                              <div className="flex items-center justify-center gap-4 text-secondary/40 font-black uppercase tracking-[0.4em] text-[10px]">
+                                 <Cpu size={14} className="animate-pulse" />
+                                 <span>Neural Orchestration Active</span>
+                              </div>
+                           </div>
+
+                           {/* Visual Progress Bar */}
+                           <div className="relative pt-4">
+                              <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+                                 <div 
+                                    className="h-full bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_auto] animate-[shimmer_2s_infinite] transition-all duration-700 ease-out" 
+                                    style={{ width: `${generationProgress}%` }}
+                                 />
+                              </div>
+                              <div className="flex justify-between mt-3">
+                                 <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Initialization</span>
+                                 <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Grounding</span>
+                                 <span className="text-[9px] font-black text-white/20 uppercase tracking-widest">Completion</span>
+                              </div>
+                           </div>
+
+                           <div className="pt-10 grid grid-cols-2 gap-4">
+                              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col items-center gap-2">
+                                 <div className={`w-2 h-2 rounded-full ${generationProgress > 20 ? 'bg-secondary shadow-[0_0_8px_#AAC48C]' : 'bg-white/10'}`} />
+                                 <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Spatial Mapping</span>
+                              </div>
+                              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col items-center gap-2">
+                                 <div className={`w-2 h-2 rounded-full ${generationProgress > 80 ? 'bg-secondary shadow-[0_0_8px_#AAC48C]' : 'bg-white/10'}`} />
+                                 <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Asset Linkage</span>
+                              </div>
+                           </div>
+                        </div>
                      </div>
                    )}
                 </div>
