@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="project/lumina-banner.svg" alt="Lumina Spaces Banner" />
+  <img src="public/lumina-banner.svg" alt="Lumina Spaces Banner" />
 </p>
 <h1 align="center" id="title">Lumina Spaces</h1>
 
