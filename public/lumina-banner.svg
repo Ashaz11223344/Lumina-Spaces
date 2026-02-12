@@ -1,0 +1,30 @@
+<svg width="100%" height="300" viewBox="0 0 1200 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="grad1" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#AAC48C">
+        <animate attributeName="stop-color" values="#AAC48C;#D7CBB2;#AAC48C" dur="6s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="100%" stop-color="#0F120E"/>
+    </radialGradient>
+
+    <filter id="blur">
+      <feGaussianBlur stdDeviation="25"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="300" fill="#0F120E"/>
+
+  <circle cx="600" cy="150" r="120" fill="url(#grad1)" filter="url(#blur)">
+    <animate attributeName="r" values="110;140;110" dur="6s" repeatCount="indefinite"/>
+  </circle>
+
+  <text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle"
+        fill="#D7CBB2" font-size="48" font-family="Space Grotesk, sans-serif">
+    Lumina Spaces
+  </text>
+
+  <text x="50%" y="65%" dominant-baseline="middle" text-anchor="middle"
+        fill="#AAC48C" font-size="20" font-family="Inter, sans-serif">
+    Reimagining Reality through Organic AI Redesign
+  </text>
+</svg>
