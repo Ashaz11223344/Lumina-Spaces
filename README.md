@@ -9,8 +9,10 @@
 
 <h2>🚀 Demo</h2>
 
-[Coming Soon – Public demo deployment in progress.]
-
+...
+luminaspaces.qzz.io
+...
+(Product will not work as api key must be needed)
   
   
 <h2>🧐 Features</h2>
